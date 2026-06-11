@@ -329,10 +329,39 @@ app.get('/api/rooms', keycloak.protect(), (req, res) => {
 app.post('/api/rooms', keycloak.protect(), async (req, res) => {
   try {
     const token = req.kauth.grant.access_token;
-    const user = {
-      id: token.content.sub,
-      name: token.content.name || token.content.preferred_username
-    };
+    const accessTokenString = token.token;
+    const userId = token.content.sub;
+    
+    // デフォルトのユーザー情報（Keycloakトークンから）
+    let userName = token.content.name || token.content.preferred_username || token.content.email;
+    
+    // Misskeyと連携している場合は、Misskeyのユーザー名を使用
+    try {
+      const userInfoUrl = `${config.keycloak['auth-server-url']}/realms/${config.keycloak.realm}/protocol/openid-connect/userinfo`;
+      const userInfoResponse = await axios.get(userInfoUrl, {
+        headers: {
+          'Authorization': `Bearer ${accessTokenString}`
+        }
+      });
+      
+      const userAttributes = userInfoResponse.data;
+      let misskeyToken = userAttributes.misskeyToken;
+      
+      // misskeyTokenがオブジェクトの場合、tokenフィールドを抽出
+      if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
+        misskeyToken = misskeyToken.token;
+      }
+      
+      if (misskeyToken) {
+        const verification = await verifyMisskeyToken(misskeyToken);
+        if (verification.valid && verification.user) {
+          // Misskeyの表示名を使用（nameがない場合はusernameを使用）
+          userName = verification.user.name || verification.user.username;
+        }
+      }
+    } catch (misskeyError) {
+      console.warn('Misskeyユーザー情報取得エラー（デフォルト名を使用）:', misskeyError.message);
+    }
     
     const { name, password } = req.body;
     
@@ -351,8 +380,8 @@ app.post('/api/rooms', keycloak.protect(), async (req, res) => {
     roomOps.create.run(
       roomId,
       name.trim(),
-      user.id,
-      user.name,
+      userId,
+      userName,
       passwordHash,
       now,
       now
@@ -361,7 +390,7 @@ app.post('/api/rooms', keycloak.protect(), async (req, res) => {
     res.json({
       id: roomId,
       name: name.trim(),
-      creatorName: user.name
+      creatorName: userName
     });
   } catch (error) {
     console.error('ルーム作成エラー:', error);
