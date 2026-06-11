@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WebRTC 音声通話</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- テーマ切り替えボタン -->
+  <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え">
+    🌙
+  </button>
+
+  <div class="container">
+    <header>
+      <h1>🎙️ WebRTC 音声通話</h1>
+    </header>
+
+    <main>
+      <!-- 接続前の画面 -->
+      <div id="lobby" class="section">
+        <h2>ルームに参加</h2>
+        <div class="input-group">
+          <input 
+            type="text" 
+            id="room-input" 
+            placeholder="ルームID (例: room123)"
+            value="room123"
+          >
+          <input 
+            type="text" 
+            id="username-input" 
+            placeholder="ユーザー名"
+            value=""
+          >
+          <button id="join-btn" class="btn btn-primary">参加</button>
+        </div>
+        <p class="help-text">
+          同じルームIDを使用している他のユーザーと音声通話ができます
+        </p>
+      </div>
+
+      <!-- 通話中の画面 -->
+      <div id="room" class="section hidden">
+        <div class="room-info">
+          <h2>ルーム: <span id="current-room"></span></h2>
+          <p>ユーザー: <span id="current-username"></span></p>
+        </div>
+
+        <div class="call-status">
+          <div id="status" class="status-disconnected">
+            <span class="status-dot"></span>
+            <span id="status-text">待機中...</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button id="mute-btn" class="btn btn-control" title="ミュート">
+            <span class="icon">🎤</span>
+            <span class="label">ミュート</span>
+          </button>
+          <button id="leave-btn" class="btn btn-danger" title="退出">
+            <span class="icon">📞</span>
+            <span class="label">退出</span>
+          </button>
+        </div>
+
+        <div id="participants" class="participants">
+          <h3>参加者</h3>
+          <div id="participants-list"></div>
+        </div>
+      </div>
+
+      <!-- ログエリア -->
+      <div class="log-section">
+        <h3>接続ログ</h3>
+        <div id="log" class="log-area"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Socket.io クライアント -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- メインアプリケーション -->
+  <script src="app.js"></script>
+</body>
+</html>

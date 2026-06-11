@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ログイン - WebRTC 音声通話</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .login-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    
+    .login-card {
+      background: var(--card-bg);
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 8px 16px var(--shadow-color);
+      border: 1px solid var(--border-color);
+      max-width: 400px;
+      width: 100%;
+      text-align: center;
+    }
+    
+    .login-card h1 {
+      color: var(--primary-color);
+      margin-bottom: 10px;
+      font-size: 2rem;
+    }
+    
+    .login-card p {
+      color: var(--text-secondary);
+      margin-bottom: 30px;
+    }
+    
+    .login-btn {
+      width: 100%;
+      padding: 15px;
+      font-size: 1.1rem;
+      background: var(--button-bg);
+      color: var(--text-color);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 700;
+      transition: all 0.3s;
+    }
+    
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px var(--shadow-color);
+      opacity: 0.9;
+    }
+    
+    .login-info {
+      margin-top: 20px;
+      padding: 15px;
+      background: var(--status-bg);
+      border-radius: 8px;
+      border-left: 4px solid var(--primary-color);
+      text-align: left;
+    }
+    
+    .login-info h3 {
+      font-size: 1rem;
+      margin-bottom: 10px;
+      color: var(--primary-color);
+    }
+    
+    .login-info ul {
+      margin: 10px 0 0 20px;
+      color: var(--text-secondary);
+    }
+    
+    .login-info li {
+      margin: 5px 0;
+    }
+  </style>
+</head>
+<body>
+  <!-- テーマ切り替えボタン -->
+  <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え">
+    🌙
+  </button>
+
+  <div class="login-container">
+    <div class="login-card">
+      <h1>🎙️ WebRTC 音声通話</h1>
+      <p>Keycloak SSOでログインしてください</p>
+      
+      <button class="login-btn" onclick="login()">
+        🔐 ログイン
+      </button>
+      
+      <div class="login-info">
+        <h3>✨ 主な機能</h3>
+        <ul>
+          <li>リアルタイム音声通話</li>
+          <li>ルーム管理とパスワード保護</li>
+          <li>チャット機能（テキスト・画像）</li>
+          <li>ルーム共有</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // テーマ管理
+    let isDarkMode = localStorage.getItem('darkMode') === 'true';
+    const themeToggleBtn = document.getElementById('theme-toggle');
+
+    function applyTheme() {
+      if (isDarkMode) {
+        document.body.classList.add('dark-mode');
+        themeToggleBtn.textContent = '☀️';
+        themeToggleBtn.title = 'ライトモードに切り替え';
+      } else {
+        document.body.classList.remove('dark-mode');
+        themeToggleBtn.textContent = '🌙';
+        themeToggleBtn.title = 'ダークモードに切り替え';
+      }
+      localStorage.setItem('darkMode', isDarkMode);
+    }
+
+    themeToggleBtn.addEventListener('click', () => {
+      isDarkMode = !isDarkMode;
+      applyTheme();
+    });
+
+    applyTheme();
+
+    function login() {
+      // Keycloakログインページへリダイレクト
+      window.location.href = '/rooms';
+    }
+  </script>
+</body>
+</html>

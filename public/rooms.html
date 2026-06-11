@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ルーム一覧 - WebRTC 音声通話</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="rooms.css">
+</head>
+<body>
+  <!-- テーマ切り替えボタン -->
+  <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え">
+    🌙
+  </button>
+
+  <div class="container">
+    <header>
+      <h1>🎙️ WebRTC 音声通話</h1>
+      <div class="user-info">
+        <span id="user-name">読み込み中...</span>
+        <button id="logout-btn" class="btn btn-small btn-secondary">ログアウト</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- ルーム作成セクション -->
+      <div class="section">
+        <h2>新しいルームを作成</h2>
+        <div class="create-room-form">
+          <input 
+            type="text" 
+            id="room-name-input" 
+            placeholder="ルーム名を入力"
+            maxlength="50"
+          >
+          <input 
+            type="password" 
+            id="room-password-input" 
+            placeholder="パスワード（任意）"
+          >
+          <button id="create-room-btn" class="btn btn-primary">
+            ➕ ルームを作成
+          </button>
+        </div>
+      </div>
+
+      <!-- ルーム一覧セクション -->
+      <div class="section">
+        <div class="section-header">
+          <h2>アクティブなルーム</h2>
+          <button id="refresh-btn" class="btn btn-small btn-secondary">
+            🔄 更新
+          </button>
+        </div>
+        
+        <div id="rooms-list" class="rooms-grid">
+          <!-- ルームカードがここに表示されます -->
+        </div>
+
+        <div id="no-rooms" class="no-rooms hidden">
+          <p>現在アクティブなルームはありません</p>
+          <p>新しいルームを作成してください</p>
+        </div>
+      </div>
+
+      <!-- ログエリア -->
+      <div class="log-section">
+        <h3>システムログ</h3>
+        <div id="log" class="log-area"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- パスワード入力モーダル -->
+  <div id="password-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>🔒 パスワードが必要です</h3>
+      <p id="modal-room-name"></p>
+      <input 
+        type="password" 
+        id="modal-password-input" 
+        placeholder="パスワードを入力"
+      >
+      <div class="modal-buttons">
+        <button id="modal-cancel-btn" class="btn btn-secondary">キャンセル</button>
+        <button id="modal-join-btn" class="btn btn-primary">参加</button>
+      </div>
+      <div id="modal-error" class="modal-error hidden"></div>
+    </div>
+  </div>
+
+  <!-- ルーム共有モーダル -->
+  <div id="share-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3>📤 ルームを共有</h3>
+      <p>このリンクを共有してルームに招待できます</p>
+      <div class="share-url-container">
+        <input 
+          type="text" 
+          id="share-url-input" 
+          readonly
+        >
+        <button id="copy-url-btn" class="btn btn-primary">📋 コピー</button>
+      </div>
+      <button id="share-modal-close-btn" class="btn btn-secondary">閉じる</button>
+    </div>
+  </div>
+
+  <script src="rooms.js"></script>
+</body>
+</html>

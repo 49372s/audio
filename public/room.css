@@ -1,0 +1,353 @@
+/* ルームページ専用スタイル */
+
+.room-container {
+  display: grid;
+  grid-template-columns: 1fr 400px;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.room-main {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.room-header {
+  background: var(--card-bg);
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px var(--shadow-color);
+  border: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.room-header h1 {
+  font-size: 1.8rem;
+  color: var(--primary-color);
+  margin: 0 0 5px 0;
+}
+
+.room-header p {
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.call-section {
+  background: var(--card-bg);
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px var(--shadow-color);
+  border: 1px solid var(--border-color);
+  flex: 1;
+}
+
+.call-status {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.controls {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.participants {
+  margin-top: 30px;
+  padding: 20px;
+  background: var(--status-bg);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.participants h3 {
+  margin-bottom: 15px;
+  color: var(--primary-color);
+}
+
+#participants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.participant-item {
+  padding: 10px 15px;
+  background: var(--card-bg);
+  border-radius: 5px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.participant-icon {
+  font-size: 1.2rem;
+}
+
+.participant-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+/* チャットエリア */
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: 0 4px 6px var(--shadow-color);
+  border: 1px solid var(--border-color);
+  height: calc(100vh - 40px);
+  max-height: 900px;
+}
+
+.chat-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.chat-header h3 {
+  margin: 0;
+  color: var(--primary-color);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.chat-message {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px;
+  background: var(--status-bg);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-color);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.chat-message-author {
+  font-weight: 700;
+  color: var(--primary-color);
+  font-size: 0.9rem;
+}
+
+.chat-message-time {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.chat-message-content {
+  color: var(--text-color);
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+
+.chat-message-image {
+  margin-top: 10px;
+  border-radius: 8px;
+  max-width: 100%;
+  cursor: pointer;
+  transition: transform 0.3s;
+}
+
+.chat-message-image:hover {
+  transform: scale(1.02);
+}
+
+.chat-message.own {
+  border-left-color: var(--button-bg);
+  background: rgba(148, 251, 171, 0.1);
+}
+
+.chat-message.own .chat-message-author {
+  color: var(--button-bg);
+}
+
+.chat-input-container {
+  padding: 15px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.chat-input-container input[type="text"] {
+  flex: 1;
+  padding: 12px 15px;
+  border: 2px solid var(--border-color);
+  border-radius: 25px;
+  background: var(--bg-secondary);
+  color: var(--text-color);
+  font-size: 0.95rem;
+  transition: border-color 0.3s;
+}
+
+.chat-input-container input[type="text"]:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.chat-btn {
+  width: 45px;
+  height: 45px;
+  border: none;
+  border-radius: 50%;
+  background: var(--border-color);
+  color: var(--text-color);
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-btn:hover {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+.chat-btn-send {
+  background: var(--button-bg);
+}
+
+.chat-btn-send:hover {
+  opacity: 0.85;
+}
+
+/* 画像モーダル */
+.image-modal-content {
+  max-width: 90vw;
+  max-height: 90vh;
+  padding: 0;
+  background: transparent;
+  border: none;
+  position: relative;
+}
+
+.modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image-modal-close {
+  position: absolute;
+  top: -40px;
+  right: 0;
+  background: var(--danger-color);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  z-index: 10;
+}
+
+.image-modal-close:hover {
+  transform: scale(1.1);
+}
+
+#modal-image {
+  max-width: 90vw;
+  max-height: 90vh;
+  border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
+}
+
+/* レスポンシブ */
+@media (max-width: 1024px) {
+  .room-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .chat-area {
+    height: 500px;
+  }
+}
+
+@media (max-width: 768px) {
+  .room-header {
+    flex-direction: column;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  .room-header button {
+    width: 100%;
+  }
+
+  .controls {
+    flex-direction: column;
+  }
+
+  .btn-control {
+    width: 100%;
+  }
+
+  .chat-area {
+    height: 400px;
+  }
+
+  .room-container {
+    padding: 10px;
+  }
+}
+
+/* スクロールバー */
+.chat-messages::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border-radius: 5px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 5px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  background: var(--primary-color);
+}
