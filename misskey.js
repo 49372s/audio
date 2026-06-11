@@ -59,7 +59,7 @@ function generateMiAuthUrl(userId) {
   const sessionId = `audio-chat-${userId}`;
   
   const params = new URLSearchParams({
-    name: 'WebRTC Audio Chat',
+    name: 'MSNIC Audio Chat',
     callback: `${appBaseUrl}/rooms.html`,
     permission: 'read:account,write:notes'
   });
