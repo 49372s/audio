@@ -13,10 +13,12 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcrypt');
+const axios = require('axios');
 
 // 認証とデータベース
 const { config, sessionConfig, keycloak, requireAuth, requireApiAuth } = require('./auth');
 const { roomOps, participantOps, chatOps } = require('./database');
+const { verifyMisskeyToken, generateMiAuthUrl } = require('./misskey');
 
 const PORT = config.server.port || 3367;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -79,6 +81,66 @@ app.use(express.urlencoded({ extended: true }));
 app.use(session(sessionConfig));
 app.use(keycloak.middleware());
 
+// Misskey連携チェックミドルウェア
+async function requireMisskeyAuth(req, res, next) {
+  try {
+    const token = req.kauth.grant.access_token;
+    const accessTokenString = token.token;
+    
+    // Keycloak UserInfoエンドポイントからユーザー属性を取得
+    const userInfoUrl = `${config.keycloak['auth-server-url']}/realms/${config.keycloak.realm}/protocol/openid-connect/userinfo`;
+    const userInfoResponse = await axios.get(userInfoUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessTokenString}`
+      }
+    });
+    
+    const userAttributes = userInfoResponse.data;
+    let misskeyToken = userAttributes.misskeyToken;
+    
+    // misskeyTokenがオブジェクトの場合、tokenフィールドを抽出
+    if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
+      misskeyToken = misskeyToken.token;
+    }
+    
+    // デバッグ用ログ
+    console.log('=== Misskey認証チェック ===');
+    console.log('UserInfo URL:', userInfoUrl);
+    console.log('UserInfo Response:', JSON.stringify(userAttributes, null, 2));
+    console.log('ユーザー:', userAttributes.preferred_username || userAttributes.email);
+    console.log('misskeyToken存在:', !!misskeyToken);
+    console.log('misskeyToken値:', misskeyToken);
+    
+    if (!misskeyToken) {
+      console.log('→ トークンなし: /misskey-required.html にリダイレクト');
+      return res.redirect('/misskey-required.html');
+    }
+    
+    // トークンの有効性を検証
+    const verification = await verifyMisskeyToken(misskeyToken);
+    console.log('トークン検証結果:', verification.valid ? '有効' : '無効');
+    
+    if (!verification.valid) {
+      console.log('→ トークン無効: /misskey-required.html にリダイレクト');
+      return res.redirect('/misskey-required.html');
+    }
+    
+    // 検証済みユーザー情報をリクエストに追加
+    req.misskeyUser = verification.user;
+    console.log('→ 認証成功:', verification.user?.username);
+    next();
+  } catch (error) {
+    console.error('=== Misskey認証チェックエラー ===');
+    console.error('エラー詳細:', error);
+    console.error('エラーメッセージ:', error.message);
+    if (error.response) {
+      console.error('HTTPステータス:', error.response.status);
+      console.error('レスポンスデータ:', error.response.data);
+    }
+    res.redirect('/misskey-required.html');
+  }
+}
+
 // ================== ページルーティング ==================
 
 // ルートパスをログインページにリダイレクト
@@ -91,19 +153,24 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ルーム一覧へのリダイレクト（認証必要）
-app.get('/rooms', keycloak.protect(), (req, res) => {
+// ルーム一覧へのリダイレクト（認証＋Misskey連携必要）
+app.get('/rooms', keycloak.protect(), requireMisskeyAuth, (req, res) => {
   res.redirect('/rooms.html');
 });
 
-// ルーム一覧ページ（認証必要）
-app.get('/rooms.html', keycloak.protect(), (req, res) => {
+// ルーム一覧ページ（認証＋Misskey連携必要）
+app.get('/rooms.html', keycloak.protect(), requireMisskeyAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'rooms.html'));
 });
 
-// ルームページ（認証必要）
-app.get('/room.html', keycloak.protect(), (req, res) => {
+// ルームページ（認証＋Misskey連携必要）
+app.get('/room.html', keycloak.protect(), requireMisskeyAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'room.html'));
+});
+
+// Misskey連携必須ページ（認証のみ必要）
+app.get('/misskey-required.html', keycloak.protect(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'misskey-required.html'));
 });
 
 // ログアウト
@@ -144,15 +211,85 @@ const upload = multer({
 
 // ================== API エンドポイント ==================
 
-// ユーザー情報取得
-app.get('/api/user', keycloak.protect(), (req, res) => {
-  const token = req.kauth.grant.access_token;
-  res.json({
-    id: token.content.sub,
-    username: token.content.preferred_username || token.content.email,
-    email: token.content.email,
-    name: token.content.name || token.content.preferred_username
-  });
+// ユーザー情報取得（Misskeyトークン検証含む）
+app.get('/api/user', keycloak.protect(), async (req, res) => {
+  try {
+    const token = req.kauth.grant.access_token;
+    const accessTokenString = token.token;
+    const userId = token.content.sub;
+    const userInfo = {
+      id: userId,
+      username: token.content.preferred_username || token.content.email,
+      email: token.content.email,
+      name: token.content.name || token.content.preferred_username
+    };
+
+    // Keycloak UserInfoエンドポイントからユーザー属性を取得
+    const userInfoUrl = `${config.keycloak['auth-server-url']}/realms/${config.keycloak.realm}/protocol/openid-connect/userinfo`;
+    const userInfoResponse = await axios.get(userInfoUrl, {
+      headers: {
+        'Authorization': `Bearer ${accessTokenString}`
+      }
+    });
+    
+    const userAttributes = userInfoResponse.data;
+    let misskeyToken = userAttributes.misskeyToken;
+    
+    // misskeyTokenがオブジェクトの場合、tokenフィールドを抽出
+    if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
+      misskeyToken = misskeyToken.token;
+    }
+
+    console.log('=== /api/user エンドポイント ===');
+    console.log('UserInfo Response:', JSON.stringify(userAttributes, null, 2));
+    console.log('misskeyToken存在:', !!misskeyToken);
+    console.log('misskeyToken値:', misskeyToken);
+
+    if (!misskeyToken) {
+      // Misskeyトークンがない場合
+      return res.json({
+        ...userInfo,
+        misskey: {
+          connected: false,
+          authUrl: generateMiAuthUrl(userId)
+        }
+      });
+    }
+
+    // Misskeyトークンを検証
+    const verification = await verifyMisskeyToken(misskeyToken);
+
+    if (!verification.valid) {
+      // トークンが無効な場合
+      return res.json({
+        ...userInfo,
+        misskey: {
+          connected: false,
+          error: verification.error,
+          authUrl: generateMiAuthUrl(userId)
+        }
+      });
+    }
+
+    // トークンが有効な場合
+    res.json({
+      ...userInfo,
+      name: verification.user.name,
+      misskey: {
+        connected: true,
+        user: verification.user
+      }
+    });
+  } catch (error) {
+    console.error('=== /api/user エンドポイントエラー ===');
+    console.error('エラー詳細:', error);
+    console.error('エラーメッセージ:', error.message);
+    if (error.response) {
+      console.error('HTTPステータス:', error.response.status);
+      console.error('レスポンスデータ:', error.response.data);
+    }
+    res.status(500).json({ error: 'ユーザー情報の取得に失敗しました' });
+  }
 });
 
 // ルーム一覧取得
@@ -353,6 +490,7 @@ io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   const userId = socket.handshake.auth.userId;
   const userName = socket.handshake.auth.userName;
+  const avatarUrl = socket.handshake.auth.avatarUrl || '';
 
   if (!userId || !userName) {
     return next(new Error('認証情報が不足しています'));
@@ -360,6 +498,7 @@ io.use((socket, next) => {
 
   socket.userId = userId;
   socket.userName = userName;
+  socket.avatarUrl = avatarUrl;
   next();
 });
 
@@ -392,6 +531,7 @@ io.on('connection', (socket) => {
         roomId,
         socket.userId,
         socket.userName,
+        socket.avatarUrl,
         Date.now()
       );
 
@@ -401,7 +541,7 @@ io.on('connection', (socket) => {
       console.log(`ユーザー ${socket.userName} がルーム ${roomId} に参加しました`);
 
       // 既に部屋にいる他のユーザーに通知
-      socket.to(roomId).emit('user-connected', socket.userId, socket.userName);
+      socket.to(roomId).emit('user-connected', socket.userId, socket.userName, socket.avatarUrl);
 
       // 現在の参加者リスト送信
       const participants = participantOps.getByRoom.all(roomId);
@@ -409,7 +549,8 @@ io.on('connection', (socket) => {
         success: true,
         participants: participants.map(p => ({
           userId: p.user_id,
-          userName: p.user_name
+          userName: p.user_name,
+          avatarUrl: p.avatar_url
         }))
       });
 

@@ -23,6 +23,7 @@ db.exec(`
     room_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     user_name TEXT NOT NULL,
+    avatar_url TEXT,
     joined_at INTEGER NOT NULL,
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
   );
@@ -75,8 +76,8 @@ const roomOps = {
 const participantOps = {
   // 参加者追加
   add: db.prepare(`
-    INSERT INTO room_participants (socket_id, room_id, user_id, user_name, joined_at)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO room_participants (socket_id, room_id, user_id, user_name, avatar_url, joined_at)
+    VALUES (?, ?, ?, ?, ?, ?)
   `),
 
   // 参加者削除

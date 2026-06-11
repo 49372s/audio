@@ -61,7 +61,24 @@ async function loadUserInfo() {
     }
     
     currentUser = await response.json();
-    userNameSpan.innerHTML = `<span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">person</span>${currentUser.name}`;
+    
+    // Misskeyのユーザー情報を表示
+    if (currentUser.misskey?.connected && currentUser.misskey.user) {
+      const misskeyUser = currentUser.misskey.user;
+      const avatarUrl = misskeyUser.avatarUrl || '';
+      const displayName = misskeyUser.name || misskeyUser.username;
+      
+      if (avatarUrl) {
+        userNameSpan.innerHTML = `
+          <img src="${avatarUrl}" alt="avatar" style="width: 24px; height: 24px; border-radius: 50%; vertical-align: middle; margin-right: 8px;">
+          ${displayName}
+        `;
+      } else {
+        userNameSpan.innerHTML = `<span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">person</span>${displayName}`;
+      }
+    } else {
+      userNameSpan.innerHTML = `<span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">person</span>${currentUser.name}`;
+    }
   } catch (error) {
     console.error('ユーザー情報取得エラー:', error);
   }

@@ -84,7 +84,24 @@ async function loadUserInfo() {
     }
     
     currentUser = await response.json();
-    userNameSpan.textContent = currentUser.name;
+    
+    // Misskeyのユーザー情報を表示
+    if (currentUser.misskey?.connected && currentUser.misskey.user) {
+      const misskeyUser = currentUser.misskey.user;
+      const avatarUrl = misskeyUser.avatarUrl || '';
+      const displayName = misskeyUser.name || misskeyUser.username;
+      
+      if (avatarUrl) {
+        userNameSpan.innerHTML = `
+          <img src="${avatarUrl}" alt="avatar" style="width: 20px; height: 20px; border-radius: 50%; vertical-align: middle; margin-right: 6px;">
+          ${displayName}
+        `;
+      } else {
+        userNameSpan.textContent = displayName;
+      }
+    } else {
+      userNameSpan.textContent = currentUser.name;
+    }
     
     // ルーム情報取得
     await loadRoomInfo();
@@ -148,7 +165,8 @@ async function connectSocket() {
     socket = io({
       auth: {
         userId: currentUser.id,
-        userName: currentUser.name
+        userName: currentUser.name,
+        avatarUrl: currentUser.misskey?.user?.avatarUrl || ''
       }
     });
     
@@ -170,7 +188,7 @@ async function connectSocket() {
     });
 
     // 新しいユーザーが接続した時
-    socket.on('user-connected', async (newUserId, newUserName) => {
+    socket.on('user-connected', async (newUserId, newUserName, avatarUrl) => {
       console.log(`${newUserName} が参加しました`);
       addSystemMessage(`${newUserName} が参加しました`);
       
@@ -288,10 +306,19 @@ function updateParticipants(participants) {
   participants.forEach(p => {
     const item = document.createElement('div');
     item.className = 'participant-item';
-    item.innerHTML = `
-      <span class="participant-icon">👤</span>
-      <span class="participant-name">${escapeHtml(p.userName)}${p.userId === currentUser.id ? ' (あなた)' : ''}</span>
-    `;
+    
+    if (p.avatarUrl) {
+      item.innerHTML = `
+        <img src="${p.avatarUrl}" alt="avatar" style="width: 24px; height: 24px; border-radius: 50%; object-fit: cover;">
+        <span class="participant-name">${escapeHtml(p.userName)}${p.userId === currentUser.id ? ' (あなた)' : ''}</span>
+      `;
+    } else {
+      item.innerHTML = `
+        <span class="participant-icon">👤</span>
+        <span class="participant-name">${escapeHtml(p.userName)}${p.userId === currentUser.id ? ' (あなた)' : ''}</span>
+      `;
+    }
+    
     participantsList.appendChild(item);
   });
 }

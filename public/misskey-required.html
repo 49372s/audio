@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Misskey連携が必要です - WebRTC Audio Chat</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: #f2f6fc;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      background: var(--bg-primary);
+      padding: 50px;
+      border-radius: 15px;
+      box-shadow: var(--elevation-8);
+      text-align: center;
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .icon-large {
+      font-size: 80px;
+      color: var(--md-primary);
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      color: var(--text-primary);
+      margin: 20px 0;
+      font-size: 28px;
+      font-weight: 500;
+    }
+
+    .description {
+      color: var(--text-secondary);
+      margin: 20px 0 30px;
+      line-height: 1.6;
+      font-size: 16px;
+    }
+
+    .info-box {
+      background: var(--bg-secondary);
+      padding: 20px;
+      border-radius: 8px;
+      margin: 25px 0;
+      text-align: left;
+      border-left: 4px solid var(--md-primary);
+    }
+
+    .info-box p {
+      margin: 8px 0;
+      color: var(--text-primary);
+    }
+
+    .info-box strong {
+      color: var(--md-primary);
+    }
+
+    .info-box .note {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 12px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      margin-top: 30px;
+      flex-wrap: wrap;
+    }
+
+    .btn-large {
+      padding: 15px 30px;
+      font-size: 16px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="material-icons icon-large">link_off</span>
+    <h1>Misskeyアカウントの連携が必要です</h1>
+    <p class="description">
+      このサービスを利用するには、Misskeyアカウントとの連携が必須です。<br>
+      連携することで、ルーム情報を投稿したり、友人を招待したりできます。
+    </p>
+
+    <div class="info-box">
+      <p><strong><span class="material-icons" style="vertical-align: middle; font-size: 18px;">domain</span> Misskeyインスタンス:</strong> freeski.msnis.net</p>
+      <p class="note">
+        <span class="material-icons" style="vertical-align: middle; font-size: 16px;">info</span>
+        連携は安全に行われます。アプリケーションはアカウント情報の読み取りと投稿の権限のみを要求します。
+      </p>
+    </div>
+
+    <div class="button-group">
+      <button id="connect-btn" class="btn btn-primary btn-large">
+        <span class="material-icons">link</span>
+        Misskeyと連携する
+      </button>
+      <button id="logout-btn" class="btn btn-secondary btn-large">
+        <span class="material-icons">logout</span>
+        ログアウト
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const connectBtn = document.getElementById('connect-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+
+    // 連携ボタン - https://miauth.thsvs.com/ に直接リダイレクト
+    connectBtn.addEventListener('click', () => {
+      window.location.href = 'https://miauth.thsvs.com/';
+    });
+
+    // ログアウトボタン
+    logoutBtn.addEventListener('click', () => {
+      window.location.href = '/logout';
+    });
+  </script>
+</body>
+</html>

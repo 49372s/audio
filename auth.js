@@ -20,7 +20,8 @@ try {
         credentials: {
           secret: process.env.KEYCLOAK_CLIENT_SECRET || 'YOUR_CLIENT_SECRET_HERE'
         },
-        'confidential-port': 0
+        'confidential-port': 0,
+        scope: 'openid profile email misskey-token'
       },
       server: {
         'session-secret': process.env.SESSION_SECRET || 'change-this-secret',
