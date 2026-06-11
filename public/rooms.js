@@ -91,6 +91,9 @@ async function loadRooms() {
     if (!response.ok) throw new Error('ルーム一覧の取得に失敗しました');
     
     const rooms = await response.json();
+    console.log('=== クライアント: ルーム一覧取得 ===');
+    console.log('受信したルーム数:', rooms.length);
+    console.log('ルーム詳細:', rooms);
     displayRooms(rooms);
   } catch (error) {
     console.error('ルーム一覧取得エラー:', error);

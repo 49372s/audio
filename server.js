@@ -296,11 +296,16 @@ app.get('/api/user', keycloak.protect(), async (req, res) => {
 app.get('/api/rooms', keycloak.protect(), (req, res) => {
   try {
     const rooms = roomOps.getAll.all();
+    console.log('=== ルーム一覧取得 ===');
+    console.log('DB内のルーム数:', rooms.length);
+    
     const roomsWithCount = rooms.map(room => {
       const count = participantOps.countByRoom.get(room.id);
+      const participantCount = count ? count.count : 0;
+      console.log(`ルーム: ${room.name}, 参加者数: ${participantCount}, 作成日時: ${new Date(room.created_at).toLocaleString()}`);
       return {
         ...room,
-        participantCount: count ? count.count : 0,
+        participantCount: participantCount,
         hasPassword: !!room.password_hash
       };
     });
@@ -309,6 +314,7 @@ app.get('/api/rooms', keycloak.protect(), (req, res) => {
     const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
     roomsWithCount.forEach(room => {
       if (room.participantCount === 0 && room.created_at < fiveMinutesAgo) {
+        console.log(`古いルームを削除: ${room.name} (作成: ${new Date(room.created_at).toLocaleString()})`);
         deleteRoomWithCleanup(room.id);
       }
     });
@@ -318,6 +324,7 @@ app.get('/api/rooms', keycloak.protect(), (req, res) => {
       return !(room.participantCount === 0 && room.created_at < fiveMinutesAgo);
     });
     
+    console.log('返却するアクティブルーム数:', activeRooms.length);
     res.json(activeRooms);
   } catch (error) {
     console.error('ルーム一覧取得エラー:', error);
