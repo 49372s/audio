@@ -4,18 +4,19 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ルーム一覧 - WebRTC 音声通話</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="rooms.css">
 </head>
 <body>
   <!-- テーマ切り替えボタン -->
   <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え">
-    🌙
+    <span class="material-icons">brightness_4</span>
   </button>
 
   <div class="container">
     <header>
-      <h1>🎙️ WebRTC 音声通話</h1>
+      <h1><span class="material-icons" style="vertical-align: middle; font-size: 28px; margin-right: 8px;">mic</span>WebRTC 音声通話</h1>
       <div class="user-info">
         <span id="user-name">読み込み中...</span>
         <button id="logout-btn" class="btn btn-small btn-secondary">ログアウト</button>
@@ -39,7 +40,7 @@
             placeholder="パスワード（任意）"
           >
           <button id="create-room-btn" class="btn btn-primary">
-            ➕ ルームを作成
+            <span class="material-icons">add</span>ルームを作成
           </button>
         </div>
       </div>
@@ -49,7 +50,7 @@
         <div class="section-header">
           <h2>アクティブなルーム</h2>
           <button id="refresh-btn" class="btn btn-small btn-secondary">
-            🔄 更新
+            <span class="material-icons">refresh</span>更新
           </button>
         </div>
         
@@ -62,19 +63,13 @@
           <p>新しいルームを作成してください</p>
         </div>
       </div>
-
-      <!-- ログエリア -->
-      <div class="log-section">
-        <h3>システムログ</h3>
-        <div id="log" class="log-area"></div>
-      </div>
     </main>
   </div>
 
   <!-- パスワード入力モーダル -->
   <div id="password-modal" class="modal hidden">
     <div class="modal-content">
-      <h3>🔒 パスワードが必要です</h3>
+      <h3><span class="material-icons" style="vertical-align: middle; margin-right: 8px;">lock</span>パスワードが必要です</h3>
       <p id="modal-room-name"></p>
       <input 
         type="password" 
@@ -92,7 +87,7 @@
   <!-- ルーム共有モーダル -->
   <div id="share-modal" class="modal hidden">
     <div class="modal-content">
-      <h3>📤 ルームを共有</h3>
+      <h3><span class="material-icons" style="vertical-align: middle; margin-right: 8px;">share</span>ルームを共有</h3>
       <p>このリンクを共有してルームに招待できます</p>
       <div class="share-url-container">
         <input 

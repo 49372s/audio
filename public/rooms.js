@@ -7,7 +7,6 @@ const createRoomBtn = document.getElementById('create-room-btn');
 const refreshBtn = document.getElementById('refresh-btn');
 const roomsList = document.getElementById('rooms-list');
 const noRoomsDiv = document.getElementById('no-rooms');
-const logDiv = document.getElementById('log');
 const themeToggleBtn = document.getElementById('theme-toggle');
 
 // パスワードモーダル
@@ -34,10 +33,10 @@ let isDarkMode = localStorage.getItem('darkMode') === 'true';
 function applyTheme() {
   if (isDarkMode) {
     document.body.classList.add('dark-mode');
-    themeToggleBtn.textContent = '☀️';
+    themeToggleBtn.innerHTML = '<span class="material-icons">brightness_7</span>';
   } else {
     document.body.classList.remove('dark-mode');
-    themeToggleBtn.textContent = '🌙';
+    themeToggleBtn.innerHTML = '<span class="material-icons">brightness_4</span>';
   }
   localStorage.setItem('darkMode', isDarkMode);
 }
@@ -48,16 +47,6 @@ themeToggleBtn.addEventListener('click', () => {
 });
 
 applyTheme();
-
-// ログ出力
-function addLog(message, type = 'info') {
-  const timestamp = new Date().toLocaleTimeString('ja-JP');
-  const logEntry = document.createElement('div');
-  logEntry.className = `log-entry log-${type}`;
-  logEntry.textContent = `[${timestamp}] ${message}`;
-  logDiv.appendChild(logEntry);
-  logDiv.scrollTop = logDiv.scrollHeight;
-}
 
 // ユーザー情報取得
 async function loadUserInfo() {
@@ -72,11 +61,9 @@ async function loadUserInfo() {
     }
     
     currentUser = await response.json();
-    userNameSpan.textContent = `👤 ${currentUser.name}`;
-    addLog(`ようこそ、${currentUser.name}さん！`, 'success');
+    userNameSpan.innerHTML = `<span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">person</span>${currentUser.name}`;
   } catch (error) {
     console.error('ユーザー情報取得エラー:', error);
-    addLog('ユーザー情報の取得に失敗しました', 'error');
   }
 }
 
@@ -88,10 +75,8 @@ async function loadRooms() {
     
     const rooms = await response.json();
     displayRooms(rooms);
-    addLog(`${rooms.length}件のルームを取得しました`, 'info');
   } catch (error) {
     console.error('ルーム一覧取得エラー:', error);
-    addLog('ルーム一覧の取得に失敗しました', 'error');
   }
 }
 
@@ -115,7 +100,7 @@ function displayRooms(rooms) {
     card.innerHTML = `
       <div class="room-card-header">
         <h3 class="room-card-title">${escapeHtml(room.name)}</h3>
-        ${room.hasPassword ? '<span class="room-card-lock">🔒</span>' : ''}
+        ${room.hasPassword ? '<span class="room-card-lock material-icons">lock</span>' : ''}
       </div>
       <div class="room-card-info">
         作成者: ${escapeHtml(room.creator_name)}
@@ -124,15 +109,15 @@ function displayRooms(rooms) {
         最終アクティビティ: ${timeAgo}
       </div>
       <div class="room-card-participants">
-        <span class="room-card-participants-icon">👥</span>
+        <span class="room-card-participants-icon material-icons">group</span>
         <span>${room.participantCount}人参加中</span>
       </div>
       <div class="room-card-actions">
         <button class="room-card-btn room-card-btn-join" onclick="joinRoom('${room.id}', ${room.hasPassword})">
-          🎙️ 参加
+          <span class="material-icons">mic</span>参加
         </button>
         <button class="room-card-btn room-card-btn-share" onclick="shareRoom('${room.id}', '${escapeHtml(room.name)}')">
-          📤 共有
+          <span class="material-icons">share</span>共有
         </button>
       </div>
     `;
@@ -169,22 +154,25 @@ createRoomBtn.addEventListener('click', async () => {
     }
     
     const room = await response.json();
-    addLog(`ルーム「${room.name}」を作成しました`, 'success');
     
+    const createdPassword = password; // 作成時のパスワードを保持
     roomNameInput.value = '';
     roomPasswordInput.value = '';
     
     await loadRooms();
     
-    // 作成したルームに参加
+    // 作成したルームに参加（パスワード付きの場合はパスワードを含める）
     setTimeout(() => {
-      window.location.href = `/room.html?id=${room.id}`;
+      if (createdPassword && createdPassword.trim().length > 0) {
+        window.location.href = `/room.html?id=${room.id}&password=${encodeURIComponent(createdPassword)}`;
+      } else {
+        window.location.href = `/room.html?id=${room.id}`;
+      }
     }, 500);
     
   } catch (error) {
     console.error('ルーム作成エラー:', error);
     alert(error.message);
-    addLog(error.message, 'error');
   } finally {
     createRoomBtn.disabled = false;
     createRoomBtn.textContent = '➕ ルームを作成';
@@ -224,6 +212,13 @@ async function getRoomInfo(roomId) {
 // パスワード検証して参加
 modalJoinBtn.addEventListener('click', async () => {
   const password = modalPasswordInput.value;
+  
+  // パスワードが空の場合
+  if (!password || password.trim().length === 0) {
+    modalError.textContent = 'パスワードを入力してください';
+    modalError.classList.remove('hidden');
+    return;
+  }
   
   try {
     modalJoinBtn.disabled = true;
@@ -267,7 +262,6 @@ function shareRoom(roomId, roomName) {
   const url = `${window.location.origin}/room.html?id=${roomId}`;
   shareUrlInput.value = url;
   shareModal.classList.remove('hidden');
-  addLog(`ルーム「${roomName}」の共有リンクを生成しました`, 'info');
 }
 
 // URL コピー
@@ -288,7 +282,6 @@ shareModalCloseBtn.addEventListener('click', () => {
 // 更新ボタン
 refreshBtn.addEventListener('click', () => {
   loadRooms();
-  addLog('ルーム一覧を更新しました', 'info');
 });
 
 // ログアウト
@@ -320,7 +313,6 @@ function getTimeAgo(timestamp) {
 }
 
 // 初期化
-addLog('システム起動', 'success');
 loadUserInfo();
 loadRooms();
 

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ログイン - WebRTC 音声通話</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <link rel="stylesheet" href="style.css">
   <style>
     .login-container {
@@ -37,21 +38,8 @@
     
     .login-btn {
       width: 100%;
-      padding: 15px;
+      padding: 16px 32px;
       font-size: 1.1rem;
-      background: var(--button-bg);
-      color: var(--text-color);
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 700;
-      transition: all 0.3s;
-    }
-    
-    .login-btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px var(--shadow-color);
-      opacity: 0.9;
     }
     
     .login-info {
@@ -82,20 +70,20 @@
 <body>
   <!-- テーマ切り替えボタン -->
   <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え">
-    🌙
+    <span class="material-icons">brightness_4</span>
   </button>
 
   <div class="login-container">
     <div class="login-card">
-      <h1>🎙️ WebRTC 音声通話</h1>
+      <h1><span class="material-icons" style="vertical-align: middle; font-size: 32px; margin-right: 8px;">mic</span>WebRTC 音声通話</h1>
       <p>Keycloak SSOでログインしてください</p>
       
-      <button class="login-btn" onclick="login()">
-        🔐 ログイン
+      <button class="login-btn btn btn-primary" onclick="login()">
+        <span class="material-icons">lock</span>ログイン
       </button>
       
       <div class="login-info">
-        <h3>✨ 主な機能</h3>
+        <h3><span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">star</span>主な機能</h3>
         <ul>
           <li>リアルタイム音声通話</li>
           <li>ルーム管理とパスワード保護</li>
@@ -114,11 +102,11 @@
     function applyTheme() {
       if (isDarkMode) {
         document.body.classList.add('dark-mode');
-        themeToggleBtn.textContent = '☀️';
+        themeToggleBtn.innerHTML = '<span class="material-icons">brightness_7</span>';
         themeToggleBtn.title = 'ライトモードに切り替え';
       } else {
         document.body.classList.remove('dark-mode');
-        themeToggleBtn.textContent = '🌙';
+        themeToggleBtn.innerHTML = '<span class="material-icons">brightness_4</span>';
         themeToggleBtn.title = 'ダークモードに切り替え';
       }
       localStorage.setItem('darkMode', isDarkMode);

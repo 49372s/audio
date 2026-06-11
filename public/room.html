@@ -4,13 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>通話ルーム - WebRTC 音声通話</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="rooms.css">
   <link rel="stylesheet" href="room.css">
 </head>
 <body>
   <!-- テーマ切り替えボタン -->
   <button id="theme-toggle" class="theme-toggle" title="テーマ切り替え">
-    🌙
+    <span class="material-icons">brightness_4</span>
   </button>
 
   <div class="room-container">
@@ -22,7 +24,7 @@
           <p id="room-info"><span id="user-name"></span></p>
         </div>
         <button id="back-btn" class="btn btn-secondary">
-          ← ルーム一覧に戻る
+          <span class="material-icons">arrow_back</span>ルーム一覧に戻る
         </button>
       </header>
 
@@ -36,11 +38,11 @@
 
         <div class="controls">
           <button id="mute-btn" class="btn btn-control" title="ミュート">
-            <span class="icon">🎤</span>
+            <span class="icon material-icons">mic</span>
             <span class="label">ミュート</span>
           </button>
           <button id="leave-btn" class="btn btn-danger" title="退出">
-            <span class="icon">📞</span>
+            <span class="icon material-icons">call_end</span>
             <span class="label">退出</span>
           </button>
         </div>
@@ -55,7 +57,7 @@
     <!-- チャットエリア -->
     <div class="chat-area">
       <div class="chat-header">
-        <h3>💬 チャット</h3>
+        <h3><span class="material-icons" style="vertical-align: middle; margin-right: 8px;">chat</span>チャット</h3>
       </div>
 
       <div id="chat-messages" class="chat-messages">
@@ -70,7 +72,7 @@
           style="display: none;"
         >
         <button id="image-btn" class="chat-btn" title="画像を送信">
-          🖼️
+          <span class="material-icons">image</span>
         </button>
         <input 
           type="text" 
@@ -79,7 +81,7 @@
           maxlength="500"
         >
         <button id="send-btn" class="chat-btn chat-btn-send" title="送信">
-          📤
+          <span class="material-icons">send</span>
         </button>
       </div>
     </div>
@@ -87,9 +89,9 @@
 
   <!-- 画像プレビューモーダル -->
   <div id="image-modal" class="modal hidden">
-    <div class="modal-backdrop" onclick="closeImageModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-content image-modal-content">
-      <button class="image-modal-close" onclick="closeImageModal()">✕</button>
+      <button id="image-modal-close" class="image-modal-close">✕</button>
       <img id="modal-image" src="" alt="画像プレビュー">
     </div>
   </div>

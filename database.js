@@ -19,12 +19,11 @@ db.exec(`
 
   -- ルーム参加者テーブル
   CREATE TABLE IF NOT EXISTS room_participants (
+    socket_id TEXT PRIMARY KEY,
     room_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     user_name TEXT NOT NULL,
-    socket_id TEXT NOT NULL,
     joined_at INTEGER NOT NULL,
-    PRIMARY KEY (room_id, user_id),
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE
   );
 
@@ -60,7 +59,7 @@ const roomOps = {
   getById: db.prepare('SELECT * FROM rooms WHERE id = ?'),
   
   // 全ルーム取得（アクティブな順）
-  getAll: db.prepare('SELECT id, name, creator_name, created_at, last_activity FROM rooms ORDER BY last_activity DESC'),
+  getAll: db.prepare('SELECT id, name, creator_id, creator_name, password_hash, created_at, last_activity FROM rooms ORDER BY last_activity DESC'),
   
   // ルーム削除
   delete: db.prepare('DELETE FROM rooms WHERE id = ?'),
@@ -76,7 +75,7 @@ const roomOps = {
 const participantOps = {
   // 参加者追加
   add: db.prepare(`
-    INSERT OR REPLACE INTO room_participants (room_id, user_id, user_name, socket_id, joined_at)
+    INSERT INTO room_participants (socket_id, room_id, user_id, user_name, joined_at)
     VALUES (?, ?, ?, ?, ?)
   `),
 

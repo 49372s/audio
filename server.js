@@ -26,13 +26,93 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+// ルーム削除処理（画像とDBデータをクリーンアップ）
+function deleteRoomWithCleanup(roomId) {
+  try {
+    console.log(`ルーム ${roomId} を削除中...`);
+    
+    // チャットメッセージを取得し画像ファイルを削除
+    const messages = chatOps.getByRoom.all(roomId, 10000);
+    let deletedImages = 0;
+    
+    messages.forEach(msg => {
+      if (msg.message_type === 'image') {
+        const filePath = path.join(__dirname, 'public', msg.content);
+        try {
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+            deletedImages++;
+          }
+        } catch (err) {
+          console.error(`画像ファイル削除エラー (${filePath}):`, err.message);
+        }
+      }
+    });
+    
+    // DBからチャットメッセージ削除
+    const deletedMessages = chatOps.deleteByRoom.run(roomId);
+    
+    // DBから参加者削除（CASCADEで自動削除されるが明示的に実行）
+    const participants = participantOps.getByRoom.all(roomId);
+    participants.forEach(p => {
+      participantOps.removeBySocket.run(p.socket_id);
+    });
+    
+    // DBからルーム削除
+    roomOps.delete.run(roomId);
+    
+    console.log(`ルーム ${roomId} を削除完了: 画像${deletedImages}件, メッセージ${messages.length}件, 参加者${participants.length}人`);
+    
+    return true;
+  } catch (error) {
+    console.error(`ルーム削除エラー (${roomId}):`, error);
+    return false;
+  }
+}
+
+// プロキシ設定（リバースプロキシの背後で動作する場合に必要）
+app.set('trust proxy', true);
+
 // ミドルウェア
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(session(sessionConfig));
 app.use(keycloak.middleware());
 
-// 静的ファイルの提供
+// ================== ページルーティング ==================
+
+// ルートパスをログインページにリダイレクト
+app.get('/', (req, res) => {
+  res.redirect('/login.html');
+});
+
+// ログインページ（認証不要）
+app.get('/login.html', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// ルーム一覧へのリダイレクト（認証必要）
+app.get('/rooms', keycloak.protect(), (req, res) => {
+  res.redirect('/rooms.html');
+});
+
+// ルーム一覧ページ（認証必要）
+app.get('/rooms.html', keycloak.protect(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'rooms.html'));
+});
+
+// ルームページ（認証必要）
+app.get('/room.html', keycloak.protect(), (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'room.html'));
+});
+
+// ログアウト
+app.get('/logout', (req, res) => {
+  req.logout();
+  res.redirect('/login.html');
+});
+
+// 静的ファイルの提供（CSS, JS, 画像など）
 app.use(express.static('public'));
 app.use('/uploads', express.static(UPLOAD_DIR));
 
@@ -87,7 +167,21 @@ app.get('/api/rooms', keycloak.protect(), (req, res) => {
         hasPassword: !!room.password_hash
       };
     });
-    res.json(roomsWithCount);
+    
+    // 0人参加中で作成から5分以上経過したルームを削除
+    const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+    roomsWithCount.forEach(room => {
+      if (room.participantCount === 0 && room.created_at < fiveMinutesAgo) {
+        deleteRoomWithCleanup(room.id);
+      }
+    });
+    
+    // 削除されていないルームのみを返す
+    const activeRooms = roomsWithCount.filter(room => {
+      return !(room.participantCount === 0 && room.created_at < fiveMinutesAgo);
+    });
+    
+    res.json(activeRooms);
   } catch (error) {
     console.error('ルーム一覧取得エラー:', error);
     res.status(500).json({ error: 'ルーム一覧の取得に失敗しました' });
@@ -239,11 +333,8 @@ app.delete('/api/rooms/:roomId', keycloak.protect(), (req, res) => {
       return res.status(403).json({ error: 'ルームを削除する権限がありません' });
     }
 
-    // チャットメッセージ削除
-    chatOps.deleteByRoom.run(roomId);
-    
-    // ルーム削除
-    roomOps.delete.run(roomId);
+    // ルーム削除（画像とDBデータもクリーンアップ）
+    deleteRoomWithCleanup(roomId);
 
     // ルーム内の全員に通知
     io.to(roomId).emit('room-closed');
@@ -297,10 +388,10 @@ io.on('connection', (socket) => {
 
       // 参加者追加
       participantOps.add.run(
+        socket.id,
         roomId,
         socket.userId,
         socket.userName,
-        socket.id,
         Date.now()
       );
 
@@ -423,20 +514,8 @@ io.on('connection', (socket) => {
       // 参加者が0人になったらルーム削除
       const count = participantOps.countByRoom.get(roomId);
       if (count && count.count === 0) {
-        // チャットメッセージと画像削除
-        const messages = chatOps.getByRoom.all(roomId, 1000);
-        messages.forEach(msg => {
-          if (msg.message_type === 'image') {
-            const filePath = path.join(__dirname, 'public', msg.content);
-            if (fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
-            }
-          }
-        });
-        
-        chatOps.deleteByRoom.run(roomId);
-        roomOps.delete.run(roomId);
-        console.log(`ルーム ${roomId} を削除しました（参加者0人）`);
+        console.log(`参加者が0人になったためルーム ${roomId} を削除します`);
+        deleteRoomWithCleanup(roomId);
       }
     }
   });

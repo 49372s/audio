@@ -50,10 +50,10 @@ let isDarkMode = localStorage.getItem('darkMode') === 'true';
 function applyTheme() {
   if (isDarkMode) {
     document.body.classList.add('dark-mode');
-    themeToggleBtn.textContent = '☀️';
+    themeToggleBtn.innerHTML = '<span class="material-icons">brightness_7</span>';
   } else {
     document.body.classList.remove('dark-mode');
-    themeToggleBtn.textContent = '🌙';
+    themeToggleBtn.innerHTML = '<span class="material-icons">brightness_4</span>';
   }
   localStorage.setItem('darkMode', isDarkMode);
 }
@@ -409,6 +409,21 @@ function closeImageModal() {
   modalImage.src = '';
 }
 
+// モーダル閉じるボタンのイベントリスナー
+const imageModalCloseBtn = document.getElementById('image-modal-close');
+if (imageModalCloseBtn) {
+  imageModalCloseBtn.addEventListener('click', closeImageModal);
+}
+
+// モーダル背景クリックで閉じる
+if (imageModal) {
+  imageModal.addEventListener('click', (e) => {
+    if (e.target === imageModal || e.target.classList.contains('modal-backdrop')) {
+      closeImageModal();
+    }
+  });
+}
+
 // ミュートボタン
 muteBtn.addEventListener('click', () => {
   if (localStream) {
@@ -419,11 +434,11 @@ muteBtn.addEventListener('click', () => {
       
       if (isMuted) {
         muteBtn.classList.add('muted');
-        muteBtn.querySelector('.icon').textContent = '🔇';
+        muteBtn.querySelector('.icon').textContent = 'mic_off';
         muteBtn.querySelector('.label').textContent = 'ミュート中';
       } else {
         muteBtn.classList.remove('muted');
-        muteBtn.querySelector('.icon').textContent = '🎤';
+        muteBtn.querySelector('.icon').textContent = 'mic';
         muteBtn.querySelector('.label').textContent = 'ミュート';
       }
     }

@@ -16,6 +16,7 @@ try {
         'auth-server-url': process.env.KEYCLOAK_AUTH_SERVER_URL || 'https://auth.msnic.jp',
         'ssl-required': 'external',
         resource: process.env.KEYCLOAK_CLIENT_ID || 'audio-chat-client',
+        'public-client': false,
         credentials: {
           secret: process.env.KEYCLOAK_CLIENT_SECRET || 'YOUR_CLIENT_SECRET_HERE'
         },
@@ -23,7 +24,8 @@ try {
       },
       server: {
         'session-secret': process.env.SESSION_SECRET || 'change-this-secret',
-        port: process.env.PORT || 3367
+        port: process.env.PORT || 3367,
+        'base-url': process.env.APP_BASE_URL || ''
       }
     };
   } else {
@@ -47,8 +49,9 @@ const sessionConfig = {
   store: memoryStore,
   cookie: {
     maxAge: 24 * 60 * 60 * 1000, // 24時間
-    secure: false, // 本番環境ではtrueに設定（HTTPS必須）
-    httpOnly: true
+    secure: config.server['base-url'] && config.server['base-url'].startsWith('https'), // HTTPSの場合true
+    httpOnly: true,
+    sameSite: 'lax'
   }
 };
 
