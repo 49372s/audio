@@ -21,11 +21,15 @@ const modalError = document.getElementById('modal-error');
 const shareModal = document.getElementById('share-modal');
 const shareUrlInput = document.getElementById('share-url-input');
 const copyUrlBtn = document.getElementById('copy-url-btn');
+const shareMisskeyBtn = document.getElementById('share-misskey-btn');
+const shareStatus = document.getElementById('share-status');
+const shareMisskeyNote = document.getElementById('share-misskey-note');
 const shareModalCloseBtn = document.getElementById('share-modal-close-btn');
 
 // グローバル変数
 let currentUser = null;
 let currentRoomForPassword = null;
+let currentShareRoom = null;
 
 // テーマ管理
 let isDarkMode = localStorage.getItem('darkMode') === 'true';
@@ -136,7 +140,7 @@ function displayRooms(rooms) {
         <button class="room-card-btn room-card-btn-join" onclick="joinRoom('${room.id}', ${room.hasPassword})">
           <span class="material-icons">mic</span>参加
         </button>
-        <button class="room-card-btn room-card-btn-share" onclick="shareRoom('${room.id}', '${escapeHtml(room.name)}')">
+        <button class="room-card-btn room-card-btn-share" onclick="shareRoom('${room.id}', ${room.hasPassword})">
           <span class="material-icons">share</span>共有
         </button>
       </div>
@@ -278,11 +282,54 @@ modalCancelBtn.addEventListener('click', () => {
 });
 
 // ルーム共有
-function shareRoom(roomId, roomName) {
+function shareRoom(roomId, hasPassword) {
   const url = `${window.location.origin}/room.html?id=${roomId}`;
+  currentShareRoom = {
+    id: roomId,
+    hasPassword: !!hasPassword
+  };
   shareUrlInput.value = url;
+  shareStatus.textContent = '';
+  shareStatus.className = 'share-status hidden';
+  shareMisskeyNote.classList.toggle('hidden', !hasPassword);
+  shareMisskeyBtn.disabled = false;
+  shareMisskeyBtn.innerHTML = '<span class="material-icons">campaign</span>Misskeyに投稿';
   shareModal.classList.remove('hidden');
 }
+
+shareMisskeyBtn.addEventListener('click', async () => {
+  if (!currentShareRoom) {
+    return;
+  }
+
+  try {
+    shareMisskeyBtn.disabled = true;
+    shareMisskeyBtn.innerHTML = '<span class="material-icons">hourglass_top</span>投稿中...';
+    shareStatus.textContent = '';
+    shareStatus.className = 'share-status hidden';
+
+    const response = await fetch(`/api/rooms/${currentShareRoom.id}/share/misskey`, {
+      method: 'POST'
+    });
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Misskeyへの投稿に失敗しました');
+    }
+
+    shareStatus.textContent = result.noteUrl
+      ? `Misskeyに投稿しました: ${result.noteUrl}`
+      : 'Misskeyに投稿しました';
+    shareStatus.className = 'share-status share-status-success';
+  } catch (error) {
+    console.error('Misskey共有エラー:', error);
+    shareStatus.textContent = error.message;
+    shareStatus.className = 'share-status share-status-error';
+  } finally {
+    shareMisskeyBtn.disabled = false;
+    shareMisskeyBtn.innerHTML = '<span class="material-icons">campaign</span>Misskeyに投稿';
+  }
+});
 
 // URL コピー
 copyUrlBtn.addEventListener('click', () => {
@@ -296,6 +343,7 @@ copyUrlBtn.addEventListener('click', () => {
 
 // 共有モーダルを閉じる
 shareModalCloseBtn.addEventListener('click', () => {
+  currentShareRoom = null;
   shareModal.classList.add('hidden');
 });
 

@@ -4,19 +4,33 @@ const axios = require('axios');
 const MISSKEY_DOMAIN = process.env.MISSKEY_DOMAIN || 'freeski.msnis.net';
 const MISSKEY_MIAUTH_DOMAIN = process.env.MISSKEY_MIAUTH_DOMAIN || 'miauth.thsvs.com';
 
+function resolveMisskeyDomain(domain) {
+  if (!domain || typeof domain !== 'string') {
+    return MISSKEY_DOMAIN;
+  }
+
+  return domain
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase() || MISSKEY_DOMAIN;
+}
+
 /**
  * Misskey APIでトークンを検証
  * @param {string} token - Misskeyアクセストークン
  * @returns {Promise<{valid: boolean, user: object|null, error: string|null}>}
  */
-async function verifyMisskeyToken(token) {
+async function verifyMisskeyToken(token, domain = MISSKEY_DOMAIN) {
   if (!token || token.trim().length === 0) {
     return { valid: false, user: null, error: 'Token is empty' };
   }
 
+  const misskeyDomain = resolveMisskeyDomain(domain);
+
   try {
     const response = await axios.post(
-      `https://${MISSKEY_DOMAIN}/api/i`,
+      `https://${misskeyDomain}/api/i`,
       { i: token },
       {
         headers: { 'Content-Type': 'application/json' },
@@ -74,8 +88,9 @@ function generateMiAuthUrl(userId) {
  */
 async function checkMiAuthSession(sessionId) {
   try {
+    const misskeyDomain = resolveMisskeyDomain();
     const response = await axios.post(
-      `https://${MISSKEY_DOMAIN}/api/miauth/${sessionId}/check`,
+      `https://${misskeyDomain}/api/miauth/${sessionId}/check`,
       {},
       {
         headers: { 'Content-Type': 'application/json' },
@@ -85,7 +100,7 @@ async function checkMiAuthSession(sessionId) {
 
     if (response.data && response.data.ok && response.data.token) {
       // トークンを検証してユーザー情報も取得
-      const verification = await verifyMisskeyToken(response.data.token);
+      const verification = await verifyMisskeyToken(response.data.token, misskeyDomain);
       
       return {
         ok: true,
@@ -101,10 +116,60 @@ async function checkMiAuthSession(sessionId) {
   }
 }
 
+/**
+ * Misskeyにノートを投稿
+ * @param {string} token - Misskeyアクセストークン
+ * @param {string} text - 投稿本文
+ * @returns {Promise<{ok: boolean, noteId: string|null, url: string|null, error: string|null}>}
+ */
+async function createMisskeyNote(token, text, domain = MISSKEY_DOMAIN) {
+  if (!token || token.trim().length === 0) {
+    return { ok: false, noteId: null, url: null, error: 'Token is empty' };
+  }
+
+  if (!text || text.trim().length === 0) {
+    return { ok: false, noteId: null, url: null, error: 'Text is empty' };
+  }
+
+  const misskeyDomain = resolveMisskeyDomain(domain);
+
+  try {
+    const response = await axios.post(
+      `https://${misskeyDomain}/api/notes/create`,
+      {
+        i: token,
+        text: text.trim(),
+        visibility: 'public'
+      },
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 5000
+      }
+    );
+
+    const noteId = response.data?.createdNote?.id || null;
+    return {
+      ok: !!noteId,
+      noteId,
+      url: noteId ? `https://${misskeyDomain}/notes/${noteId}` : null,
+      error: noteId ? null : 'Invalid response from Misskey'
+    };
+  } catch (error) {
+    console.error('Misskey ノート投稿エラー:', error.message);
+    return {
+      ok: false,
+      noteId: null,
+      url: null,
+      error: error.response?.data?.error?.message || error.message
+    };
+  }
+}
+
 module.exports = {
   verifyMisskeyToken,
   generateMiAuthUrl,
   checkMiAuthSession,
+  createMisskeyNote,
   MISSKEY_DOMAIN,
   MISSKEY_MIAUTH_DOMAIN
 };

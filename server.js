@@ -18,7 +18,7 @@ const axios = require('axios');
 // 認証とデータベース
 const { config, sessionConfig, keycloak, requireAuth, requireApiAuth } = require('./auth');
 const { roomOps, participantOps, chatOps, cleanupOldRooms } = require('./database');
-const { verifyMisskeyToken, generateMiAuthUrl } = require('./misskey');
+const { verifyMisskeyToken, generateMiAuthUrl, createMisskeyNote } = require('./misskey');
 
 const PORT = config.server.port || 3367;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
@@ -142,12 +142,8 @@ async function requireMisskeyAuth(req, res, next) {
     });
     
     const userAttributes = userInfoResponse.data;
-    let misskeyToken = userAttributes.misskeyToken;
-    
-    // misskeyTokenがオブジェクトの場合、tokenフィールドを抽出
-    if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
-      misskeyToken = misskeyToken.token;
-    }
+    const misskeyToken = extractMisskeyToken(userAttributes);
+    const misskeyDomain = extractMisskeyDomain(userAttributes);
     
     // デバッグ用ログ
     console.log('=== Misskey認証チェック ===');
@@ -156,6 +152,7 @@ async function requireMisskeyAuth(req, res, next) {
     console.log('ユーザー:', userAttributes.preferred_username || userAttributes.email);
     console.log('misskeyToken存在:', !!misskeyToken);
     console.log('misskeyToken値:', misskeyToken);
+    console.log('misskeyDomain値:', misskeyDomain);
     
     if (!misskeyToken) {
       console.log('→ トークンなし: /misskey-required.html にリダイレクト');
@@ -163,7 +160,7 @@ async function requireMisskeyAuth(req, res, next) {
     }
     
     // トークンの有効性を検証
-    const verification = await verifyMisskeyToken(misskeyToken);
+    const verification = await verifyMisskeyToken(misskeyToken, misskeyDomain);
     console.log('トークン検証結果:', verification.valid ? '有効' : '無効');
     
     if (!verification.valid) {
@@ -185,6 +182,59 @@ async function requireMisskeyAuth(req, res, next) {
     }
     res.redirect('/misskey-required.html');
   }
+}
+
+async function getUserAttributesFromRequest(req) {
+  const token = req.kauth.grant.access_token;
+  const accessTokenString = token.token;
+  const userInfoUrl = `${config.keycloak['auth-server-url']}/realms/${config.keycloak.realm}/protocol/openid-connect/userinfo`;
+  const userInfoResponse = await axios.get(userInfoUrl, {
+    headers: {
+      'Authorization': `Bearer ${accessTokenString}`
+    }
+  });
+
+  return userInfoResponse.data;
+}
+
+function extractMisskeyToken(userAttributes) {
+  let misskeyToken = userAttributes.misskeyToken;
+
+  if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
+    misskeyToken = misskeyToken.token;
+  }
+
+  return misskeyToken;
+}
+
+function extractMisskeyDomain(userAttributes) {
+  const candidates = [
+    userAttributes.misskeyDomain,
+    userAttributes.misskey_domain,
+    userAttributes.misskeyInstance,
+    userAttributes.misskey_instance,
+    userAttributes.misskeyHost,
+    userAttributes.misskey_host,
+    userAttributes.misskeyServer,
+    userAttributes.misskey_server,
+    userAttributes.misskey?.domain,
+    userAttributes.misskey?.instance,
+    userAttributes.misskey?.host,
+    userAttributes.misskeyToken?.domain,
+    userAttributes.misskeyToken?.instance,
+    userAttributes.misskeyToken?.host
+  ];
+
+  const domain = candidates.find(value => typeof value === 'string' && value.trim().length > 0);
+  if (!domain) {
+    return null;
+  }
+
+  return domain
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase();
 }
 
 // ================== ページルーティング ==================
@@ -279,17 +329,14 @@ app.get('/api/user', keycloak.protect(), async (req, res) => {
     });
     
     const userAttributes = userInfoResponse.data;
-    let misskeyToken = userAttributes.misskeyToken;
-    
-    // misskeyTokenがオブジェクトの場合、tokenフィールドを抽出
-    if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
-      misskeyToken = misskeyToken.token;
-    }
+    const misskeyToken = extractMisskeyToken(userAttributes);
+    const misskeyDomain = extractMisskeyDomain(userAttributes);
 
     console.log('=== /api/user エンドポイント ===');
     console.log('UserInfo Response:', JSON.stringify(userAttributes, null, 2));
     console.log('misskeyToken存在:', !!misskeyToken);
     console.log('misskeyToken値:', misskeyToken);
+    console.log('misskeyDomain値:', misskeyDomain);
 
     if (!misskeyToken) {
       // Misskeyトークンがない場合
@@ -303,7 +350,7 @@ app.get('/api/user', keycloak.protect(), async (req, res) => {
     }
 
     // Misskeyトークンを検証
-    const verification = await verifyMisskeyToken(misskeyToken);
+    const verification = await verifyMisskeyToken(misskeyToken, misskeyDomain);
 
     if (!verification.valid) {
       // トークンが無効な場合
@@ -323,6 +370,7 @@ app.get('/api/user', keycloak.protect(), async (req, res) => {
       name: verification.user.name,
       misskey: {
         connected: true,
+        domain: misskeyDomain,
         user: verification.user
       }
     });
@@ -398,15 +446,11 @@ app.post('/api/rooms', keycloak.protect(), async (req, res) => {
       });
       
       const userAttributes = userInfoResponse.data;
-      let misskeyToken = userAttributes.misskeyToken;
-      
-      // misskeyTokenがオブジェクトの場合、tokenフィールドを抽出
-      if (misskeyToken && typeof misskeyToken === 'object' && misskeyToken.token) {
-        misskeyToken = misskeyToken.token;
-      }
+      const misskeyToken = extractMisskeyToken(userAttributes);
+      const misskeyDomain = extractMisskeyDomain(userAttributes);
       
       if (misskeyToken) {
-        const verification = await verifyMisskeyToken(misskeyToken);
+        const verification = await verifyMisskeyToken(misskeyToken, misskeyDomain);
         if (verification.valid && verification.user) {
           // Misskeyの表示名を使用（nameがない場合はusernameを使用）
           userName = verification.user.name || verification.user.username;
@@ -476,6 +520,52 @@ app.get('/api/rooms/:roomId', keycloak.protect(), (req, res) => {
   } catch (error) {
     console.error('ルーム詳細取得エラー:', error);
     res.status(500).json({ error: 'ルーム詳細の取得に失敗しました' });
+  }
+});
+
+app.post('/api/rooms/:roomId/share/misskey', keycloak.protect(), async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const room = roomOps.getById.get(roomId);
+
+    if (!room) {
+      return res.status(404).json({ error: 'ルームが見つかりません' });
+    }
+
+    const userAttributes = await getUserAttributesFromRequest(req);
+    const misskeyToken = extractMisskeyToken(userAttributes);
+    const misskeyDomain = extractMisskeyDomain(userAttributes);
+
+    if (!misskeyToken) {
+      return res.status(400).json({ error: 'Misskey連携が必要です' });
+    }
+
+    const roomUrl = `${req.protocol}://${req.get('host')}/room.html?id=${room.id}`;
+    const lines = [
+      `通話ルーム「${room.name}」を作成しました。`,
+      '',
+      `参加はこちら: ${roomUrl}`
+    ];
+
+    if (room.password_hash) {
+      lines.push('', 'このルームにはパスワードが設定されています。パスワードは別の手段で共有してください。');
+    }
+
+    lines.push('', '#MSNICWebChat');
+
+    const noteResult = await createMisskeyNote(misskeyToken, lines.join('\n'), misskeyDomain);
+
+    if (!noteResult.ok) {
+      return res.status(502).json({ error: noteResult.error || 'Misskeyへの投稿に失敗しました' });
+    }
+
+    res.json({
+      message: 'Misskeyに投稿しました',
+      noteUrl: noteResult.url
+    });
+  } catch (error) {
+    console.error('Misskey共有エラー:', error);
+    res.status(500).json({ error: 'Misskey共有に失敗しました' });
   }
 });
 

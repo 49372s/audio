@@ -89,6 +89,7 @@
     <div class="modal-content">
       <h3><span class="material-icons" style="vertical-align: middle; margin-right: 8px;">share</span>ルームを共有</h3>
       <p>このリンクを共有してルームに招待できます</p>
+      <p id="share-misskey-note" class="share-note hidden">パスワード付きルームです。Misskey投稿にはURLのみ含まれ、パスワードは含まれません。</p>
       <div class="share-url-container">
         <input 
           type="text" 
@@ -97,6 +98,12 @@
         >
         <button id="copy-url-btn" class="btn btn-primary">📋 コピー</button>
       </div>
+      <div class="share-action-row">
+        <button id="share-misskey-btn" class="btn btn-primary">
+          <span class="material-icons">campaign</span>Misskeyに投稿
+        </button>
+      </div>
+      <div id="share-status" class="share-status hidden"></div>
       <button id="share-modal-close-btn" class="btn btn-secondary">閉じる</button>
     </div>
   </div>
