@@ -17,7 +17,7 @@ const axios = require('axios');
 
 // 認証とデータベース
 const { config, sessionConfig, keycloak, requireAuth, requireApiAuth } = require('./auth');
-const { roomOps, participantOps, chatOps } = require('./database');
+const { roomOps, participantOps, chatOps, cleanupOldRooms } = require('./database');
 const { verifyMisskeyToken, generateMiAuthUrl } = require('./misskey');
 
 const PORT = config.server.port || 3367;
@@ -28,26 +28,60 @@ if (!fs.existsSync(UPLOAD_DIR)) {
   fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 }
 
+function resolveUploadFilePath(content) {
+  if (typeof content !== 'string' || !content.startsWith('/uploads/')) {
+    return null;
+  }
+
+  const normalizedPath = path.posix.normalize(content);
+  if (!normalizedPath.startsWith('/uploads/')) {
+    return null;
+  }
+
+  const fileName = path.posix.basename(normalizedPath);
+  if (!fileName || fileName === '.' || fileName === '..') {
+    return null;
+  }
+
+  return path.join(UPLOAD_DIR, fileName);
+}
+
 // ルーム削除処理（画像とDBデータをクリーンアップ）
 function deleteRoomWithCleanup(roomId) {
   try {
     console.log(`ルーム ${roomId} を削除中...`);
     
-    // チャットメッセージを取得し画像ファイルを削除
+    // チャット履歴を取得し、そのルームの画像だけを個別に検査して削除
     const messages = chatOps.getByRoom.all(roomId, 10000);
     let deletedImages = 0;
+    const processedContents = new Set();
     
     messages.forEach(msg => {
-      if (msg.message_type === 'image') {
-        const filePath = path.join(__dirname, 'public', msg.content);
-        try {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-            deletedImages++;
-          }
-        } catch (err) {
-          console.error(`画像ファイル削除エラー (${filePath}):`, err.message);
+      if (msg.message_type !== 'image' || processedContents.has(msg.content)) {
+        return;
+      }
+
+      processedContents.add(msg.content);
+
+      const filePath = resolveUploadFilePath(msg.content);
+      if (!filePath) {
+        console.warn(`画像メッセージのパス形式が不正のため削除をスキップ: ${msg.content}`);
+        return;
+      }
+
+      const otherRoomRefs = chatOps.countImageRefsInOtherRooms.get(roomId, msg.content);
+      if (otherRoomRefs && otherRoomRefs.count > 0) {
+        console.log(`画像ファイルは別ルームでも参照中のため削除をスキップ: ${msg.content}`);
+        return;
+      }
+
+      try {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          deletedImages++;
         }
+      } catch (err) {
+        console.error(`画像ファイル削除エラー (${filePath}):`, err.message);
       }
     });
     
@@ -71,6 +105,18 @@ function deleteRoomWithCleanup(roomId) {
     return false;
   }
 }
+
+// 定期クリーンアップ（1時間ごと）
+setInterval(() => {
+  try {
+    const oldRooms = cleanupOldRooms();
+    oldRooms.forEach(room => {
+      deleteRoomWithCleanup(room.id);
+    });
+  } catch (error) {
+    console.error('古いルームの定期クリーンアップに失敗しました:', error);
+  }
+}, 60 * 60 * 1000);
 
 // プロキシ設定（リバースプロキシの背後で動作する場合に必要）
 app.set('trust proxy', true);

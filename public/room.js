@@ -13,7 +13,7 @@ let socket;
 let localStream;
 let peerConnection;
 let currentUser = null;
-let isMuted = false;
+let isMuted = true;
 
 // ICE サーバー設定
 const iceServers = {
@@ -70,6 +70,21 @@ function updateStatus(text, isConnected) {
   statusText.textContent = text;
   statusDiv.className = isConnected ? 'status-connected' : 'status-disconnected';
 }
+
+function applyMuteState() {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !isMuted;
+    }
+  }
+
+  muteBtn.classList.toggle('muted', isMuted);
+  muteBtn.querySelector('.icon').textContent = isMuted ? 'mic_off' : 'mic';
+  muteBtn.querySelector('.label').textContent = isMuted ? 'ミュート中' : 'ミュート';
+}
+
+applyMuteState();
 
 // ユーザー情報取得
 async function loadUserInfo() {
@@ -158,6 +173,7 @@ async function connectSocket() {
       audio: true, 
       video: false 
     });
+    applyMuteState();
     
     updateStatus('接続中...', false);
     
@@ -454,21 +470,8 @@ if (imageModal) {
 // ミュートボタン
 muteBtn.addEventListener('click', () => {
   if (localStream) {
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) {
-      isMuted = !isMuted;
-      audioTrack.enabled = !isMuted;
-      
-      if (isMuted) {
-        muteBtn.classList.add('muted');
-        muteBtn.querySelector('.icon').textContent = 'mic_off';
-        muteBtn.querySelector('.label').textContent = 'ミュート中';
-      } else {
-        muteBtn.classList.remove('muted');
-        muteBtn.querySelector('.icon').textContent = 'mic';
-        muteBtn.querySelector('.label').textContent = 'ミュート';
-      }
-    }
+    isMuted = !isMuted;
+    applyMuteState();
   }
 });
 

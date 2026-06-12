@@ -4,7 +4,7 @@ let localStream;
 let peerConnection;
 let roomId;
 let userId;
-let isMuted = false;
+let isMuted = true;
 
 // ICE サーバー設定 (Google の公開STUNサーバーを使用)
 const iceServers = {
@@ -73,6 +73,21 @@ function updateStatus(text, isConnected) {
   statusDiv.className = isConnected ? 'status-connected' : 'status-disconnected';
 }
 
+function applyMuteState() {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !isMuted;
+    }
+  }
+
+  muteBtn.classList.toggle('muted', isMuted);
+  muteBtn.querySelector('.icon').textContent = isMuted ? '🔇' : '🎤';
+  muteBtn.querySelector('.label').textContent = isMuted ? 'ミュート中' : 'ミュート';
+}
+
+applyMuteState();
+
 // 参加ボタンのクリックイベント
 joinBtn.addEventListener('click', async () => {
   roomId = roomInput.value.trim();
@@ -90,6 +105,7 @@ joinBtn.addEventListener('click', async () => {
       audio: true, 
       video: false 
     });
+    applyMuteState();
     
     addLog('マイクへのアクセスが許可されました', 'success');
     
@@ -210,23 +226,9 @@ async function createPeerConnection(remoteUserId) {
 // ミュートボタン
 muteBtn.addEventListener('click', () => {
   if (localStream) {
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) {
-      isMuted = !isMuted;
-      audioTrack.enabled = !isMuted;
-      
-      if (isMuted) {
-        muteBtn.classList.add('muted');
-        muteBtn.querySelector('.icon').textContent = '🔇';
-        muteBtn.querySelector('.label').textContent = 'ミュート中';
-        addLog('マイクをミュートしました', 'info');
-      } else {
-        muteBtn.classList.remove('muted');
-        muteBtn.querySelector('.icon').textContent = '🎤';
-        muteBtn.querySelector('.label').textContent = 'ミュート';
-        addLog('マイクのミュートを解除しました', 'info');
-      }
-    }
+    isMuted = !isMuted;
+    applyMuteState();
+    addLog(isMuted ? 'マイクをミュートしました' : 'マイクのミュートを解除しました', 'info');
   }
 });
 
@@ -256,10 +258,8 @@ function leaveRoom() {
   lobbySection.classList.remove('hidden');
   
   addLog('ルームから退出しました', 'warning');
-  isMuted = false;
-  muteBtn.classList.remove('muted');
-  muteBtn.querySelector('.icon').textContent = '🎤';
-  muteBtn.querySelector('.label').textContent = 'ミュート';
+  isMuted = true;
+  applyMuteState();
 }
 
 // ページを離れる前の警告

@@ -110,22 +110,23 @@ const chatOps = {
   `),
   
   // ルームのメッセージ削除
-  deleteByRoom: db.prepare('DELETE FROM chat_messages WHERE room_id = ?')
+  deleteByRoom: db.prepare('DELETE FROM chat_messages WHERE room_id = ?'),
+
+  // 他ルームで同じ画像が参照されている件数
+  countImageRefsInOtherRooms: db.prepare(`
+    SELECT COUNT(*) as count
+    FROM chat_messages
+    WHERE room_id != ?
+      AND message_type = 'image'
+      AND content = ?
+  `)
 };
 
 // 古いルームのクリーンアップ（24時間以上アクティビティなし）
 function cleanupOldRooms() {
   const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000);
-  const oldRooms = db.prepare('SELECT id FROM rooms WHERE last_activity < ?').all(oneDayAgo);
-  
-  for (const room of oldRooms) {
-    roomOps.delete.run(room.id);
-    console.log(`クリーンアップ: ルーム ${room.id} を削除しました`);
-  }
+  return db.prepare('SELECT id FROM rooms WHERE last_activity < ?').all(oneDayAgo);
 }
-
-// 定期クリーンアップ（1時間ごと）
-setInterval(cleanupOldRooms, 60 * 60 * 1000);
 
 module.exports = {
   db,
