@@ -169,14 +169,20 @@ async function connectSocket() {
   try {
     // マイクとカメラへのアクセス許可を取得
     updateStatus('マイクとカメラへのアクセスを要求中...', false);
-    localStream = await navigator.mediaDevices.getUserMedia({ 
-      audio: true, 
-      video: { 
-        width: { ideal: 640 },
-        height: { ideal: 480 }
-      }
-    });
-    applyMuteState();
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ 
+        audio: true, 
+        video: { 
+          width: { ideal: 640 },
+          height: { ideal: 480 }
+        }
+      });
+      applyMuteState();
+    } catch (mediaError) {
+      console.warn('マイク/カメラへのアクセスが拒否されました:', mediaError.message);
+      alert('マイク/カメラへのアクセスが拒否されました。チャット機能のみ利用できます。');
+      // localStream は null のまま、チャット継続
+    }
     
     updateStatus('接続中...', false);
     
@@ -291,8 +297,8 @@ async function connectSocket() {
     });
 
   } catch (error) {
-    console.error('エラー:', error);
-    alert('マイクへのアクセスが拒否されました。ブラウザの設定を確認してください。');
+    console.error('Socket.IO接続エラー:', error);
+    alert('サーバー接続に失敗しました。');
     window.location.href = '/rooms.html';
   }
 }
@@ -301,10 +307,12 @@ async function connectSocket() {
 async function createPeerConnection(remoteUserId) {
   peerConnection = new RTCPeerConnection(iceServers);
 
-  // ローカルストリームの各トラックを追加
-  localStream.getTracks().forEach(track => {
-    peerConnection.addTrack(track, localStream);
-  });
+  // ローカルストリームの各トラックを追加（存在する場合のみ）
+  if (localStream) {
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
+  }
 
   // リモートストリーム受信時の処理
   peerConnection.ontrack = (event) => {
