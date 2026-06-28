@@ -167,11 +167,14 @@ async function loadChatHistory() {
 // Socket.IO接続
 async function connectSocket() {
   try {
-    // マイクへのアクセス許可を取得
-    updateStatus('マイクへのアクセスを要求中...', false);
+    // マイクとカメラへのアクセス許可を取得
+    updateStatus('マイクとカメラへのアクセスを要求中...', false);
     localStream = await navigator.mediaDevices.getUserMedia({ 
       audio: true, 
-      video: false 
+      video: { 
+        width: { ideal: 640 },
+        height: { ideal: 480 }
+      }
     });
     applyMuteState();
     
@@ -188,6 +191,12 @@ async function connectSocket() {
     
     socket.on('connect', () => {
       console.log('サーバーに接続しました');
+      
+      // Canvas初期化
+      initializeCanvas();
+      
+      // ローカルビデオ表示
+      displayLocalVideo();
       
       // ルームに参加
       socket.emit('join-room', roomId, roomPassword || '', (response) => {
@@ -263,6 +272,18 @@ async function connectSocket() {
       displayChatMessage(message, isOwn);
     });
 
+    // Canvas描画データ受信
+    socket.on('draw', (drawData) => {
+      drawLine(drawData.x0, drawData.y0, drawData.x1, drawData.y1, drawData.color, drawData.width);
+    });
+
+    // キャンバスクリア受信
+    socket.on('clear-canvas', () => {
+      const rect = drawingCanvas.getBoundingClientRect();
+      canvasContext.fillStyle = 'white';
+      canvasContext.fillRect(0, 0, rect.width, rect.height);
+    });
+
     // ルームが閉鎖された
     socket.on('room-closed', () => {
       alert('ルームが削除されました');
@@ -287,12 +308,24 @@ async function createPeerConnection(remoteUserId) {
 
   // リモートストリーム受信時の処理
   peerConnection.ontrack = (event) => {
-    console.log('リモート音声ストリームを受信');
-    const remoteAudio = new Audio();
-    remoteAudio.srcObject = event.streams[0];
-    remoteAudio.play().catch(e => {
-      console.error('音声再生エラー:', e);
-    });
+    console.log('リモートストリームを受信:', event.streams[0].getTracks());
+    
+    // ビデオトラックの場合
+    if (event.track.kind === 'video') {
+      console.log('リモートビデオストリームを受信');
+      displayRemoteVideo(event.streams[0]);
+    }
+    
+    // 音声トラックの場合
+    if (event.track.kind === 'audio') {
+      console.log('リモート音声ストリームを受信');
+      const remoteAudio = new Audio();
+      remoteAudio.srcObject = event.streams[0];
+      remoteAudio.play().catch(e => {
+        console.error('音声再生エラー:', e);
+      });
+    }
+    
     updateStatus('通話中', true);
   };
 
@@ -522,6 +555,238 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// ============================================
+// Canvas描画機能
+// ============================================
+
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+let canvasContext;
+let drawingCanvas;
+
+// Canvas要素の取得と初期化
+function initializeCanvas() {
+  drawingCanvas = document.getElementById('drawing-canvas');
+  canvasContext = drawingCanvas.getContext('2d');
+  
+  // キャンバスのサイズを設定（デバイスピクセル比を考慮）
+  const dpr = window.devicePixelRatio || 1;
+  const rect = drawingCanvas.getBoundingClientRect();
+  drawingCanvas.width = rect.width * dpr;
+  drawingCanvas.height = rect.height * dpr;
+  canvasContext.scale(dpr, dpr);
+  
+  // 背景を白で塗りつぶし
+  canvasContext.fillStyle = 'white';
+  canvasContext.fillRect(0, 0, rect.width, rect.height);
+  
+  // マウスイベントのリッスン
+  drawingCanvas.addEventListener('mousedown', startDrawing);
+  drawingCanvas.addEventListener('mousemove', draw);
+  drawingCanvas.addEventListener('mouseup', stopDrawing);
+  drawingCanvas.addEventListener('mouseout', stopDrawing);
+  
+  // タッチイベントのリッスン（モバイル対応）
+  drawingCanvas.addEventListener('touchstart', handleTouchStart);
+  drawingCanvas.addEventListener('touchmove', handleTouchMove);
+  drawingCanvas.addEventListener('touchend', stopDrawing);
+  
+  // 描画設定UI
+  const brushColorInput = document.getElementById('brush-color');
+  const brushSizeInput = document.getElementById('brush-size');
+  const brushSizeDisplay = document.getElementById('brush-size-display');
+  const clearCanvasBtn = document.getElementById('clear-canvas-btn');
+  const toggleVideoBtn = document.getElementById('toggle-video-btn');
+  
+  brushColorInput.addEventListener('change', (e) => {
+    canvasContext.strokeStyle = e.target.value;
+  });
+  
+  brushSizeInput.addEventListener('input', (e) => {
+    canvasContext.lineWidth = e.target.value;
+    brushSizeDisplay.textContent = e.target.value;
+  });
+  
+  clearCanvasBtn.addEventListener('click', clearCanvas);
+  
+  // ビデオON/OFFボタン
+  const toggleVideoBtn = document.getElementById('toggle-video-btn');
+  if (toggleVideoBtn) {
+    toggleVideoBtn.addEventListener('click', toggleVideo);
+  }
+  
+  // 初期値の設定
+  canvasContext.strokeStyle = brushColorInput.value;
+  canvasContext.lineWidth = brushSizeInput.value;
+  canvasContext.lineCap = 'round';
+  canvasContext.lineJoin = 'round';
+}
+
+// 描画開始
+function startDrawing(e) {
+  isDrawing = true;
+  const rect = drawingCanvas.getBoundingClientRect();
+  lastX = (e.clientX - rect.left) * (drawingCanvas.width / rect.width);
+  lastY = (e.clientY - rect.top) * (drawingCanvas.height / rect.height);
+}
+
+// 描画処理
+function draw(e) {
+  if (!isDrawing) return;
+  
+  const rect = drawingCanvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (drawingCanvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (drawingCanvas.height / rect.height);
+  
+  // ローカルに描画
+  drawLine(lastX, lastY, x, y);
+  
+  // WebSocket経由で送信
+  if (socket) {
+    socket.emit('draw', roomId, {
+      x0: lastX,
+      y0: lastY,
+      x1: x,
+      y1: y,
+      color: canvasContext.strokeStyle,
+      width: canvasContext.lineWidth
+    });
+  }
+  
+  lastX = x;
+  lastY = y;
+}
+
+// 描画停止
+function stopDrawing() {
+  isDrawing = false;
+}
+
+// タッチ開始
+function handleTouchStart(e) {
+  const touch = e.touches[0];
+  const rect = drawingCanvas.getBoundingClientRect();
+  isDrawing = true;
+  lastX = (touch.clientX - rect.left) * (drawingCanvas.width / rect.width);
+  lastY = (touch.clientY - rect.top) * (drawingCanvas.height / rect.height);
+}
+
+// タッチ移動
+function handleTouchMove(e) {
+  if (!isDrawing) return;
+  e.preventDefault();
+  
+  const touch = e.touches[0];
+  const rect = drawingCanvas.getBoundingClientRect();
+  const x = (touch.clientX - rect.left) * (drawingCanvas.width / rect.width);
+  const y = (touch.clientY - rect.top) * (drawingCanvas.height / rect.height);
+  
+  drawLine(lastX, lastY, x, y);
+  
+  if (socket) {
+    socket.emit('draw', roomId, {
+      x0: lastX,
+      y0: lastY,
+      x1: x,
+      y1: y,
+      color: canvasContext.strokeStyle,
+      width: canvasContext.lineWidth
+    });
+  }
+  
+  lastX = x;
+  lastY = y;
+}
+
+// 線を描画する関数
+function drawLine(x0, y0, x1, y1, color = null, width = null) {
+  if (color) canvasContext.strokeStyle = color;
+  if (width) canvasContext.lineWidth = width;
+  
+  canvasContext.beginPath();
+  canvasContext.moveTo(x0, y0);
+  canvasContext.lineTo(x1, y1);
+  canvasContext.stroke();
+}
+
+// キャンバスをクリア
+function clearCanvas() {
+  const rect = drawingCanvas.getBoundingClientRect();
+  canvasContext.fillStyle = 'white';
+  canvasContext.fillRect(0, 0, rect.width, rect.height);
+  
+  if (socket) {
+    socket.emit('clear-canvas', roomId);
+  }
+}
+
+// ビデオ表示/非表示切り替え
+function toggleVideo() {
+  const videoContainer = document.querySelector('.video-container');
+  videoContainer.style.display = videoContainer.style.display === 'none' ? 'block' : 'none';
+}
+
+// ============================================
+// ビデオ機能
+// ============================================
+
+let remoteStream;
+let isVideoEnabled = false;  // ビデオON/OFF状態
+
+// ローカルビデオの表示
+async function displayLocalVideo() {
+  try {
+    const localVideo = document.getElementById('local-video');
+    if (localStream && localVideo) {
+      localVideo.srcObject = localStream;
+      
+      // ビデオトラックを初期状態でOFFに設定
+      const videoTracks = localStream.getVideoTracks();
+      videoTracks.forEach(track => {
+        track.enabled = isVideoEnabled;
+      });
+    }
+  } catch (error) {
+    console.error('ローカルビデオ表示エラー:', error);
+  }
+}
+
+// リモートビデオの表示
+function displayRemoteVideo(stream) {
+  const remoteVideo = document.getElementById('remote-video');
+  if (remoteVideo) {
+    remoteVideo.srcObject = stream;
+    remoteStream = stream;
+  }
+}
+
+// ビデオON/OFF切り替え
+function toggleVideo() {
+  if (!localStream) return;
+  
+  const videoTracks = localStream.getVideoTracks();
+  isVideoEnabled = !isVideoEnabled;
+  
+  videoTracks.forEach(track => {
+    track.enabled = isVideoEnabled;
+  });
+  
+  // ボタンのテキストを更新
+  const toggleVideoBtn = document.getElementById('toggle-video-btn');
+  if (toggleVideoBtn) {
+    if (isVideoEnabled) {
+      toggleVideoBtn.classList.add('active');
+      toggleVideoBtn.querySelector('.material-icons').textContent = 'videocam';
+      toggleVideoBtn.querySelector('span:last-child').textContent = 'ビデオ中';
+    } else {
+      toggleVideoBtn.classList.remove('active');
+      toggleVideoBtn.querySelector('.material-icons').textContent = 'videocam_off';
+      toggleVideoBtn.querySelector('span:last-child').textContent = 'ビデオOFF';
+    }
+  }
 }
 
 // 初期化

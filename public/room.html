@@ -36,6 +36,37 @@
           </div>
         </div>
 
+        <!-- ビデオおよび描画キャンバスエリア -->
+        <div class="video-canvas-area">
+          <!-- ビデオエリア -->
+          <div class="video-container">
+            <video id="local-video" autoplay muted playsinline></video>
+            <video id="remote-video" autoplay playsinline></video>
+          </div>
+          
+          <!-- 描画キャンバス -->
+          <div class="canvas-container">
+            <canvas id="drawing-canvas" class="drawing-canvas"></canvas>
+            <div class="canvas-toolbar">
+              <div class="color-picker-group">
+                <label for="brush-color">色:</label>
+                <input type="color" id="brush-color" value="#000000" title="ブラシの色">
+              </div>
+              <div class="brush-size-group">
+                <label for="brush-size">太さ:</label>
+                <input type="range" id="brush-size" min="1" max="50" value="3" title="ブラシの太さ">
+                <span id="brush-size-display">3</span>px
+              </div>
+              <button id="clear-canvas-btn" class="btn btn-secondary" title="キャンバスをクリア">
+                <span class="material-icons">delete</span>クリア
+              </button>
+              <button id="toggle-video-btn" class="btn btn-secondary" title="ビデオON/OFF">
+                <span class="material-icons">videocam_off</span>ビデオOFF
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div class="controls">
           <button id="mute-btn" class="btn btn-control" title="ミュート">
             <span class="icon material-icons">mic</span>

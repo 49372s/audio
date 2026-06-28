@@ -811,6 +811,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Canvas描画データ受信（ルーム内の全ユーザーにブロードキャスト）
+  socket.on('draw', (roomId, drawData) => {
+    try {
+      // 送信者以外の全員に送信
+      socket.to(roomId).emit('draw', drawData);
+    } catch (error) {
+      console.error('Canvas描画エラー:', error);
+    }
+  });
+
+  // キャンバスクリアコマンド受信
+  socket.on('clear-canvas', (roomId) => {
+    try {
+      // ルーム内の全ユーザーに送信
+      io.to(roomId).emit('clear-canvas');
+    } catch (error) {
+      console.error('キャンバスクリアエラー:', error);
+    }
+  });
+
   // 切断時の処理
   socket.on('disconnect', () => {
     console.log('クライアントが切断しました:', socket.userId);
