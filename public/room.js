@@ -613,7 +613,6 @@ function initializeCanvas() {
   clearCanvasBtn.addEventListener('click', clearCanvas);
   
   // ビデオON/OFFボタン
-  const toggleVideoBtn = document.getElementById('toggle-video-btn');
   if (toggleVideoBtn) {
     toggleVideoBtn.addEventListener('click', toggleVideo);
   }
