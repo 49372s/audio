@@ -64,14 +64,12 @@ async function verifyMisskeyToken(token, domain = MISSKEY_DOMAIN) {
 
 /**
  * MiAuth連携用のURLを生成
- * miauth.thsvs.comがKeycloakと直接連携し、misskeyToken属性を設定する
  * @param {string} userId - KeycloakユーザーID（セッション識別用）
  * @returns {string} MiAuth連携URL
  */
 function generateMiAuthUrl(userId) {
   const appBaseUrl = process.env.APP_BASE_URL || 'http://localhost:3367';
   const sessionId = `audio-chat-${userId}`;
-  
   const params = new URLSearchParams({
     name: 'MSNIC Audio Chat',
     callback: `${appBaseUrl}/rooms.html`,
@@ -81,14 +79,25 @@ function generateMiAuthUrl(userId) {
   return `https://${MISSKEY_MIAUTH_DOMAIN}/${sessionId}?${params.toString()}`;
 }
 
+function generateMiAuthLoginUrl(sessionId, callbackUrl, domain = MISSKEY_DOMAIN) {
+  const misskeyDomain = resolveMisskeyDomain(domain);
+  const params = new URLSearchParams({
+    name: 'MSNIC Audio Chat',
+    callback: callbackUrl,
+    permission: 'read:account,write:notes'
+  });
+
+  return `https://${misskeyDomain}/miauth/${sessionId}?${params.toString()}`;
+}
+
 /**
  * MiAuthセッションからトークンを取得
  * @param {string} sessionId - セッションID
  * @returns {Promise<{ok: boolean, token: string|null, user: object|null}>}
  */
-async function checkMiAuthSession(sessionId) {
+async function checkMiAuthSession(sessionId, domain = MISSKEY_DOMAIN) {
   try {
-    const misskeyDomain = resolveMisskeyDomain();
+    const misskeyDomain = resolveMisskeyDomain(domain);
     const response = await axios.post(
       `https://${misskeyDomain}/api/miauth/${sessionId}/check`,
       {},
@@ -168,6 +177,7 @@ async function createMisskeyNote(token, text, domain = MISSKEY_DOMAIN) {
 module.exports = {
   verifyMisskeyToken,
   generateMiAuthUrl,
+  generateMiAuthLoginUrl,
   checkMiAuthSession,
   createMisskeyNote,
   MISSKEY_DOMAIN,

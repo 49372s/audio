@@ -18,10 +18,11 @@ const axios = require('axios');
 // 認証とデータベース
 const { config, sessionConfig, keycloak, requireAuth, requireApiAuth } = require('./auth');
 const { roomOps, participantOps, chatOps, cleanupOldRooms } = require('./database');
-const { verifyMisskeyToken, generateMiAuthUrl, createMisskeyNote } = require('./misskey');
+const { verifyMisskeyToken, generateMiAuthUrl, generateMiAuthLoginUrl, checkMiAuthSession, createMisskeyNote } = require('./misskey');
 
 const PORT = config.server.port || 3367;
 const UPLOAD_DIR = path.join(__dirname, 'uploads');
+const MIAUTH_LOGIN_DOMAIN = 'freeski.msnis.net';
 
 // アップロードディレクトリ作成
 if (!fs.existsSync(UPLOAD_DIR)) {
@@ -127,9 +128,60 @@ app.use(express.urlencoded({ extended: true }));
 app.use(session(sessionConfig));
 app.use(keycloak.middleware());
 
+function getAuthenticatedUser(req) {
+  if (req.session.miauth?.user) {
+    const user = req.session.miauth.user;
+    return {
+      id: `misskey:${MIAUTH_LOGIN_DOMAIN}:${user.id}`,
+      username: user.username,
+      name: user.name || user.username,
+      email: null
+    };
+  }
+
+  const token = req.kauth?.grant?.access_token;
+  if (!token) {
+    return null;
+  }
+
+  return {
+    id: token.content.sub,
+    username: token.content.preferred_username || token.content.email,
+    email: token.content.email,
+    name: token.content.name || token.content.preferred_username
+  };
+}
+
+const protectWithKeycloak = keycloak.protect();
+
+function requireLogin(req, res, next) {
+  const user = getAuthenticatedUser(req);
+  if (user) {
+    req.user = user;
+    return next();
+  }
+
+  return protectWithKeycloak(req, res, error => {
+    if (error) {
+      return next(error);
+    }
+
+    req.user = getAuthenticatedUser(req);
+    if (!req.user) {
+      return res.status(401).json({ error: '認証が必要です' });
+    }
+    next();
+  });
+}
+
 // Misskey連携チェックミドルウェア
 async function requireMisskeyAuth(req, res, next) {
   try {
+    if (req.session.miauth?.user) {
+      req.misskeyUser = req.session.miauth.user;
+      return next();
+    }
+
     const token = req.kauth.grant.access_token;
     const accessTokenString = token.token;
     
@@ -249,29 +301,83 @@ app.get('/login.html', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+app.get('/auth/miauth', (req, res) => {
+  const sessionId = uuidv4();
+  req.session.miauthPending = {
+    sessionId,
+    createdAt: Date.now()
+  };
+
+  const callbackUrl = `${req.protocol}://${req.get('host')}/auth/miauth/callback`;
+  const authUrl = generateMiAuthLoginUrl(sessionId, callbackUrl, MIAUTH_LOGIN_DOMAIN);
+  req.session.save(error => {
+    if (error) {
+      console.error('MiAuthセッション保存エラー:', error);
+      return res.redirect('/login.html?error=miauth');
+    }
+    res.redirect(authUrl);
+  });
+});
+
+app.get('/auth/miauth/callback', async (req, res) => {
+  const pending = req.session.miauthPending;
+  delete req.session.miauthPending;
+  if (!pending || Date.now() - pending.createdAt > 10 * 60 * 1000) {
+    return res.redirect('/login.html?error=miauth');
+  }
+
+  const result = await checkMiAuthSession(pending.sessionId, MIAUTH_LOGIN_DOMAIN);
+  if (!result.ok || !result.user || !result.token) {
+    return res.redirect('/login.html?error=miauth');
+  }
+
+  req.session.regenerate(error => {
+    if (error) {
+      console.error('MiAuthログインセッション再生成エラー:', error);
+      return res.redirect('/login.html?error=miauth');
+    }
+
+    req.session.miauth = {
+      token: result.token,
+      user: result.user,
+      domain: MIAUTH_LOGIN_DOMAIN
+    };
+    req.session.save(saveError => {
+      if (saveError) {
+        console.error('MiAuthログインセッション保存エラー:', saveError);
+        return res.redirect('/login.html?error=miauth');
+      }
+      res.redirect('/rooms.html');
+    });
+  });
+});
+
 // ルーム一覧へのリダイレクト（認証＋Misskey連携必要）
-app.get('/rooms', keycloak.protect(), requireMisskeyAuth, (req, res) => {
+app.get('/rooms', requireLogin, requireMisskeyAuth, (req, res) => {
   res.redirect('/rooms.html');
 });
 
 // ルーム一覧ページ（認証＋Misskey連携必要）
-app.get('/rooms.html', keycloak.protect(), requireMisskeyAuth, (req, res) => {
+app.get('/rooms.html', requireLogin, requireMisskeyAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'rooms.html'));
 });
 
 // ルームページ（認証＋Misskey連携必要）
-app.get('/room.html', keycloak.protect(), requireMisskeyAuth, (req, res) => {
+app.get('/room.html', requireLogin, requireMisskeyAuth, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'room.html'));
 });
 
 // Misskey連携必須ページ（認証のみ必要）
-app.get('/misskey-required.html', keycloak.protect(), (req, res) => {
+app.get('/misskey-required.html', requireLogin, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'misskey-required.html'));
 });
 
 // ログアウト
 app.get('/logout', (req, res) => {
-  req.logout();
+  delete req.session.miauth;
+  if (typeof req.logout === 'function') {
+    req.logout();
+  }
   res.redirect('/login.html');
 });
 
@@ -308,8 +414,20 @@ const upload = multer({
 // ================== API エンドポイント ==================
 
 // ユーザー情報取得（Misskeyトークン検証含む）
-app.get('/api/user', keycloak.protect(), async (req, res) => {
+app.get('/api/user', requireLogin, async (req, res) => {
   try {
+    if (req.session.miauth?.user) {
+      const misskeyUser = req.session.miauth.user;
+      return res.json({
+        ...req.user,
+        misskey: {
+          connected: true,
+          domain: req.session.miauth.domain,
+          user: misskeyUser
+        }
+      });
+    }
+
     const token = req.kauth.grant.access_token;
     const accessTokenString = token.token;
     const userId = token.content.sub;
@@ -387,7 +505,7 @@ app.get('/api/user', keycloak.protect(), async (req, res) => {
 });
 
 // ルーム一覧取得
-app.get('/api/rooms', keycloak.protect(), (req, res) => {
+app.get('/api/rooms', requireLogin, (req, res) => {
   try {
     const rooms = roomOps.getAll.all();
     console.log('=== ルーム一覧取得 ===');
@@ -427,17 +545,17 @@ app.get('/api/rooms', keycloak.protect(), (req, res) => {
 });
 
 // ルーム作成
-app.post('/api/rooms', keycloak.protect(), async (req, res) => {
+app.post('/api/rooms', requireLogin, async (req, res) => {
   try {
-    const token = req.kauth.grant.access_token;
-    const accessTokenString = token.token;
-    const userId = token.content.sub;
-    
-    // デフォルトのユーザー情報（Keycloakトークンから）
-    let userName = token.content.name || token.content.preferred_username || token.content.email;
+    const userId = req.user.id;
+    let userName = req.user.name;
     
     // Misskeyと連携している場合は、Misskeyのユーザー名を使用
-    try {
+    if (req.session.miauth?.user) {
+      userName = req.session.miauth.user.name || req.session.miauth.user.username;
+    } else try {
+      const token = req.kauth.grant.access_token;
+      const accessTokenString = token.token;
       const userInfoUrl = `${config.keycloak['auth-server-url']}/realms/${config.keycloak.realm}/protocol/openid-connect/userinfo`;
       const userInfoResponse = await axios.get(userInfoUrl, {
         headers: {
@@ -496,7 +614,7 @@ app.post('/api/rooms', keycloak.protect(), async (req, res) => {
 });
 
 // ルーム詳細取得
-app.get('/api/rooms/:roomId', keycloak.protect(), (req, res) => {
+app.get('/api/rooms/:roomId', requireLogin, (req, res) => {
   try {
     const { roomId } = req.params;
     const room = roomOps.getById.get(roomId);
@@ -523,7 +641,7 @@ app.get('/api/rooms/:roomId', keycloak.protect(), (req, res) => {
   }
 });
 
-app.post('/api/rooms/:roomId/share/misskey', keycloak.protect(), async (req, res) => {
+app.post('/api/rooms/:roomId/share/misskey', requireLogin, async (req, res) => {
   try {
     const { roomId } = req.params;
     const room = roomOps.getById.get(roomId);
@@ -532,9 +650,14 @@ app.post('/api/rooms/:roomId/share/misskey', keycloak.protect(), async (req, res
       return res.status(404).json({ error: 'ルームが見つかりません' });
     }
 
-    const userAttributes = await getUserAttributesFromRequest(req);
-    const misskeyToken = extractMisskeyToken(userAttributes);
-    const misskeyDomain = extractMisskeyDomain(userAttributes);
+    let misskeyToken = req.session.miauth?.token;
+    let misskeyDomain = req.session.miauth?.domain;
+
+    if (!misskeyToken) {
+      const userAttributes = await getUserAttributesFromRequest(req);
+      misskeyToken = extractMisskeyToken(userAttributes);
+      misskeyDomain = extractMisskeyDomain(userAttributes);
+    }
 
     if (!misskeyToken) {
       return res.status(400).json({ error: 'Misskey連携が必要です' });
@@ -570,7 +693,7 @@ app.post('/api/rooms/:roomId/share/misskey', keycloak.protect(), async (req, res
 });
 
 // ルームパスワード検証
-app.post('/api/rooms/:roomId/verify-password', keycloak.protect(), async (req, res) => {
+app.post('/api/rooms/:roomId/verify-password', requireLogin, async (req, res) => {
   try {
     const { roomId } = req.params;
     const { password } = req.body;
@@ -594,7 +717,7 @@ app.post('/api/rooms/:roomId/verify-password', keycloak.protect(), async (req, r
 });
 
 // チャット履歴取得
-app.get('/api/rooms/:roomId/messages', keycloak.protect(), (req, res) => {
+app.get('/api/rooms/:roomId/messages', requireLogin, (req, res) => {
   try {
     const { roomId } = req.params;
     const limit = parseInt(req.query.limit) || 50;
@@ -608,7 +731,7 @@ app.get('/api/rooms/:roomId/messages', keycloak.protect(), (req, res) => {
 });
 
 // 画像アップロード
-app.post('/api/upload', keycloak.protect(), upload.single('image'), (req, res) => {
+app.post('/api/upload', requireLogin, upload.single('image'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'ファイルがアップロードされていません' });
@@ -626,10 +749,9 @@ app.post('/api/upload', keycloak.protect(), upload.single('image'), (req, res) =
 });
 
 // ルーム削除（作成者のみ）
-app.delete('/api/rooms/:roomId', keycloak.protect(), (req, res) => {
+app.delete('/api/rooms/:roomId', requireLogin, (req, res) => {
   try {
-    const token = req.kauth.grant.access_token;
-    const userId = token.content.sub;
+    const userId = req.user.id;
     const { roomId } = req.params;
 
     const room = roomOps.getById.get(roomId);

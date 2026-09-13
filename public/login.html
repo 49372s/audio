@@ -41,6 +41,15 @@
       padding: 16px 32px;
       font-size: 1.1rem;
     }
+
+    .login-btn + .login-btn {
+      margin-top: 12px;
+    }
+
+    .login-error {
+      color: #b3261e;
+      margin: 16px 0 0;
+    }
     
     .login-info {
       margin-top: 20px;
@@ -76,11 +85,17 @@
   <div class="login-container">
     <div class="login-card">
       <h1><span class="material-icons" style="vertical-align: middle; font-size: 32px; margin-right: 8px;">mic</span>MSNIC WEB CHAT</h1>
-      <p>MSNICアカウントでログインしてください</p>
+      <p id="login-description">ログイン方法を選択してください</p>
       
       <button class="login-btn btn btn-primary" onclick="login()">
-        <span class="material-icons">lock</span>ログイン
+        <span class="material-icons">lock</span>Keycloakでログイン
       </button>
+
+      <button id="miauth-login-btn" class="login-btn btn btn-secondary">
+        <span class="material-icons">account_circle</span>freeski.msnis.netでログイン
+      </button>
+
+      <p id="login-error" class="login-error" hidden>MiAuthでログインできませんでした。もう一度お試しください。</p>
       
       <div class="login-info">
         <h3><span class="material-icons" style="vertical-align: middle; font-size: 18px; margin-right: 4px;">star</span>主な機能</h3>
@@ -98,6 +113,8 @@
     // テーマ管理
     let isDarkMode = localStorage.getItem('darkMode') === 'true';
     const themeToggleBtn = document.getElementById('theme-toggle');
+    const miauthLoginBtn = document.getElementById('miauth-login-btn');
+    const loginError = document.getElementById('login-error');
 
     function applyTheme() {
       if (isDarkMode) {
@@ -118,6 +135,14 @@
     });
 
     applyTheme();
+
+    miauthLoginBtn.addEventListener('click', () => {
+      window.location.href = '/auth/miauth';
+    });
+
+    if (new URLSearchParams(window.location.search).get('error') === 'miauth') {
+      loginError.hidden = false;
+    }
 
     function login() {
       // Keycloakログインページへリダイレクト
